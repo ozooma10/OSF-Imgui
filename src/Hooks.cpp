@@ -55,11 +55,10 @@ namespace Hooks
 				void* a_descOrState,
 				void* a_swapChainState)
 			{
-				return Invoke("secondary", _swapChainWrapperOriginal, _callCount, a_context, a_descOrState, a_swapChainState);
+				return Invoke(_swapChainWrapperOriginal, _callCount, a_context, a_descOrState, a_swapChainState);
 			}
 
 			static std::int64_t Invoke(
-				const char* a_label,
 				func_t a_original,
 				std::atomic_uint32_t& a_callCount,
 				void* a_context,
@@ -67,7 +66,7 @@ namespace Hooks
 				void* a_swapChainState)
 			{
 				if (!a_original) {
-					REX::ERROR("SwapChainWrapperHook: {} original function pointer is null", a_label);
+					REX::ERROR("SwapChainWrapperHook: original function pointer is null");
 					return 0;
 				}
 
@@ -75,8 +74,7 @@ namespace Hooks
 				const auto count = a_callCount.fetch_add(1, std::memory_order_relaxed) + 1;
 
 				REX::INFO(
-					"SwapChainWrapperHook: {} call #{} ctx={:#x} desc={:#x} state={:#x} result={:#x}",
-					a_label,
+					"SwapChainWrapperHook call #{} ctx={:#x} desc={:#x} state={:#x} result={:#x}",
 					count,
 					reinterpret_cast<std::uintptr_t>(a_context),
 					reinterpret_cast<std::uintptr_t>(a_descOrState),
