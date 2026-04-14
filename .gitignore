@@ -1,3 +1,6 @@
 ﻿.xmake
 build
 lib
+!lib/
+!lib/commonlibsf/
+!lib/imgui/
