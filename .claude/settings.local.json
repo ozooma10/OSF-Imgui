@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -E \"\\\\.\\(h|cpp\\)$\")",
+      "Bash(xargs grep:*)",
+      "Bash(find /c/Modding/OSF-Menu-Framework/src -type f \\\\\\( -name \"*.h\" -o -name \"*.cpp\" \\\\\\) -exec grep -l \"Renderer\\\\|Graphics\\\\|Device\" {} \\\\;)"
+    ]
+  }
+}
