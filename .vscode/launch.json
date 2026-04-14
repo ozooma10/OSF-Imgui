@@ -1,0 +1,12 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach to Starfield",
+      "type": "cppvsdbg",
+      "request": "attach",
+      "symbolSearchPath": "C:\\Modding\\OSF-Menu-Framework\\build\\windows\\x64\\release",
+      "justMyCode": false
+    }
+  ]
+}

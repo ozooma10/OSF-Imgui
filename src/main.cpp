@@ -1,24 +1,32 @@
 #include "pch.h"
 
-#include "DebugOverlayService.h"
+#include "Hooks.h"
+
+namespace
+{
+	constexpr std::size_t kTrampolineSize = 1 << 10;
+}
 
 SFSE_PLUGIN_PRELOAD(const SFSE::PreLoadInterface* a_sfse)
 {
-	SFSE::Init(a_sfse);
+	SFSE::Init(a_sfse, {
+		.trampoline = true,
+		.trampolineSize = kTrampolineSize
+	});
 	return true;
 }
 
 SFSE_PLUGIN_LOAD(const SFSE::LoadInterface* a_sfse)
 {
-	SFSE::Init(a_sfse);
+	SFSE::Init(a_sfse, {
+		.trampoline = true,
+		.trampolineSize = kTrampolineSize
+	});
 
-	auto& overlay = DebugOverlayService::GetSingleton();
-	overlay.RegisterBuiltInPanels();
-
-	if (overlay.Install()) {
-		REX::INFO("OSF Menu Framework plugin loaded with Dear ImGui debug overlay support");
+	if (Hooks::Install()) {
+		REX::INFO("OSF Menu Framework plugin loaded with DXGI hook support");
 	} else {
-		REX::ERROR("OSF Menu Framework plugin loaded, but the debug overlay failed to initialize: {}", overlay.GetLastError());
+		REX::ERROR("OSF Menu Framework plugin loaded, but the DXGI hook failed to initialize");
 	}
 
 	return true;
