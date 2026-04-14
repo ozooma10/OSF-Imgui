@@ -23,9 +23,15 @@ target("osf-menu-framework")
 
     -- add src files
     add_files("src/**.cpp")
+    add_files("lib/imgui/*.cpp")
+    add_files("lib/imgui/backends/imgui_impl_dx12.cpp")
+    add_files("lib/imgui/backends/imgui_impl_win32.cpp")
     add_headerfiles("src/**.h")
     add_includedirs("src")
+    add_includedirs("lib/imgui", "lib/imgui/backends")
     set_pcxxheader("src/pch.h")
+    add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN", "IMGUI_IMPL_WIN32_DISABLE_GAMEPAD")
+    add_syslinks("d3d12", "dxgi", "user32")
 
     after_build(function(target)
         local modsroot = os.getenv("XSE_SF_MODS_PATH")
