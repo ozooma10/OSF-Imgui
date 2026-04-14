@@ -4,6 +4,12 @@
 #include <cstdint>
 #include <mutex>
 
+#include <dxgi.h>
+
+#ifdef ERROR
+#undef ERROR
+#endif
+
 #include "Overlay.h"
 #include "REL/Relocation.h"
 #include "SFSE/API.h"
@@ -12,6 +18,74 @@ namespace Hooks
 {
 	namespace
 	{
+		constexpr UINT kVtablePresent = 8;
+		constexpr UINT kVtableResizeBuffers = 13;
+
+		using PresentFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT);
+		using ResizeBuffersFn = HRESULT(STDMETHODCALLTYPE*)(IDXGISwapChain*, UINT, UINT, UINT, DXGI_FORMAT, UINT);
+
+		PresentFn g_originalPresent{ nullptr };
+		ResizeBuffersFn g_originalResizeBuffers{ nullptr };
+
+		HRESULT STDMETHODCALLTYPE HookedPresent(
+			IDXGISwapChain* a_self, UINT a_syncInterval, UINT a_flags)
+		{
+			Overlay::RenderFrame();
+			return g_originalPresent(a_self, a_syncInterval, a_flags);
+		}
+
+		HRESULT STDMETHODCALLTYPE HookedResizeBuffers(
+			IDXGISwapChain* a_self, UINT a_bufferCount, UINT a_width, UINT a_height,
+			DXGI_FORMAT a_newFormat, UINT a_flags)
+		{
+			Overlay::ReleaseRenderTargets();
+			const auto hr = g_originalResizeBuffers(
+				a_self, a_bufferCount, a_width, a_height, a_newFormat, a_flags);
+			if (SUCCEEDED(hr)) {
+				Overlay::RebuildRenderTargets();
+			}
+			return hr;
+		}
+
+		bool PatchVtableEntry(void** a_vtable, UINT a_index, void* a_hook, void** a_outOriginal)
+		{
+			DWORD oldProtect;
+			if (!VirtualProtect(
+					&a_vtable[a_index], sizeof(void*), PAGE_READWRITE, &oldProtect)) {
+				return false;
+			}
+			*a_outOriginal = a_vtable[a_index];
+			a_vtable[a_index] = a_hook;
+			VirtualProtect(&a_vtable[a_index], sizeof(void*), oldProtect, &oldProtect);
+			return true;
+		}
+
+		bool InstallDXGIHooks(IDXGISwapChain* a_swapChain)
+		{
+			if (!a_swapChain) {
+				return false;
+			}
+
+			auto** vtable = *reinterpret_cast<void***>(a_swapChain);
+
+			if (!PatchVtableEntry(vtable, kVtablePresent,
+					reinterpret_cast<void*>(HookedPresent),
+					reinterpret_cast<void**>(&g_originalPresent))) {
+				REX::ERROR("Hooks: failed to patch Present vtable entry");
+				return false;
+			}
+
+			if (!PatchVtableEntry(vtable, kVtableResizeBuffers,
+					reinterpret_cast<void*>(HookedResizeBuffers),
+					reinterpret_cast<void**>(&g_originalResizeBuffers))) {
+				REX::ERROR("Hooks: failed to patch ResizeBuffers vtable entry");
+				return false;
+			}
+
+			REX::INFO("Hooks: Present and ResizeBuffers vtable hooks installed");
+			return true;
+		}
+
 		void TryBootstrapImGui(void* a_context, void* a_descOrState, void* a_swapChainState)
 		{
 			struct BootstrapState
@@ -69,7 +143,9 @@ namespace Hooks
 			commandQueue = queueOwnerB ? queueOwnerB->commandQueue : nullptr;
 
 			if (swapChain && commandQueue) {
-				Overlay::InitializeFromSwapChain(swapChain, commandQueue);
+				if (Overlay::InitializeFromSwapChain(swapChain, commandQueue)) {
+					InstallDXGIHooks(swapChain);
+				}
 				return;
 			}
 

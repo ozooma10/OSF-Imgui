@@ -115,6 +115,11 @@ namespace Overlay
 			UINT framesInFlight{ 2 };
 			DXGI_FORMAT rtvFormat{ DXGI_FORMAT_R8G8B8A8_UNORM };
 			DescriptorHeapAllocator srvAllocator;
+			ComPtr<ID3D12DescriptorHeap> rtvHeap;
+			UINT rtvDescriptorSize{ 0 };
+			std::vector<ComPtr<ID3D12Resource>> backBuffers;
+			std::vector<ComPtr<ID3D12CommandAllocator>> commandAllocators;
+			ComPtr<ID3D12GraphicsCommandList> commandList;
 		};
 
 		RuntimeState g_state;
@@ -135,6 +140,75 @@ namespace Overlay
 			D3D12_GPU_DESCRIPTOR_HANDLE a_gpuHandle)
 		{
 			g_state.srvAllocator.Free(a_cpuHandle, a_gpuHandle);
+		}
+
+		bool CreateRenderTargets()
+		{
+			DXGI_SWAP_CHAIN_DESC desc{};
+			if (FAILED(g_state.swapChain->GetDesc(&desc))) {
+				REX::ERROR("Overlay: failed to read swap-chain desc for render targets");
+				return false;
+			}
+
+			const UINT bufferCount = desc.BufferCount;
+
+			D3D12_DESCRIPTOR_HEAP_DESC rtvHeapDesc{};
+			rtvHeapDesc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_RTV;
+			rtvHeapDesc.NumDescriptors = bufferCount;
+			rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+
+			if (FAILED(g_state.device->CreateDescriptorHeap(
+					&rtvHeapDesc, IID_PPV_ARGS(g_state.rtvHeap.ReleaseAndGetAddressOf())))) {
+				REX::ERROR("Overlay: failed to create RTV descriptor heap");
+				return false;
+			}
+
+			g_state.rtvDescriptorSize = g_state.device->GetDescriptorHandleIncrementSize(
+				D3D12_DESCRIPTOR_HEAP_TYPE_RTV);
+
+			g_state.backBuffers.resize(bufferCount);
+			auto rtvHandle = g_state.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+			for (UINT i = 0; i < bufferCount; ++i) {
+				if (FAILED(g_state.swapChain->GetBuffer(
+						i, IID_PPV_ARGS(g_state.backBuffers[i].ReleaseAndGetAddressOf())))) {
+					REX::ERROR("Overlay: failed to get back buffer {}", i);
+					return false;
+				}
+				g_state.device->CreateRenderTargetView(
+					g_state.backBuffers[i].Get(), nullptr, rtvHandle);
+				rtvHandle.ptr += g_state.rtvDescriptorSize;
+			}
+
+			g_state.commandAllocators.resize(bufferCount);
+			for (UINT i = 0; i < bufferCount; ++i) {
+				if (FAILED(g_state.device->CreateCommandAllocator(
+						D3D12_COMMAND_LIST_TYPE_DIRECT,
+						IID_PPV_ARGS(g_state.commandAllocators[i].ReleaseAndGetAddressOf())))) {
+					REX::ERROR("Overlay: failed to create command allocator {}", i);
+					return false;
+				}
+			}
+
+			if (FAILED(g_state.device->CreateCommandList(
+					0, D3D12_COMMAND_LIST_TYPE_DIRECT,
+					g_state.commandAllocators[0].Get(), nullptr,
+					IID_PPV_ARGS(g_state.commandList.ReleaseAndGetAddressOf())))) {
+				REX::ERROR("Overlay: failed to create command list");
+				return false;
+			}
+			g_state.commandList->Close();
+
+			REX::INFO("Overlay: render targets created buffers={}", bufferCount);
+			return true;
+		}
+
+		void DestroyRenderTargets()
+		{
+			g_state.commandList.Reset();
+			g_state.commandAllocators.clear();
+			g_state.backBuffers.clear();
+			g_state.rtvHeap.Reset();
+			g_state.rtvDescriptorSize = 0;
 		}
 	}
 
@@ -228,6 +302,10 @@ namespace Overlay
 		g_state.rtvFormat = swapChainDesc.BufferDesc.Format;
 		g_state.initialized = true;
 
+		if (!CreateRenderTargets()) {
+			REX::ERROR("Overlay: render target creation failed; rendering will be disabled");
+		}
+
 		REX::INFO(
 			"Overlay: ImGui initialized hwnd={:#x} buffers={} format={:#x}",
 			reinterpret_cast<std::uintptr_t>(g_state.hwnd),
@@ -241,5 +319,76 @@ namespace Overlay
 	{
 		std::scoped_lock lock(g_state.mutex);
 		return g_state.initialized;
+	}
+
+	void RenderFrame()
+	{
+		std::scoped_lock lock(g_state.mutex);
+
+		if (!g_state.initialized || g_state.backBuffers.empty()) {
+			return;
+		}
+
+		const UINT frameIndex = g_state.swapChain->GetCurrentBackBufferIndex();
+
+		auto& cmdAllocator = g_state.commandAllocators[frameIndex];
+		cmdAllocator->Reset();
+		g_state.commandList->Reset(cmdAllocator.Get(), nullptr);
+
+		D3D12_RESOURCE_BARRIER barrier{};
+		barrier.Type = D3D12_RESOURCE_BARRIER_TYPE_TRANSITION;
+		barrier.Transition.pResource = g_state.backBuffers[frameIndex].Get();
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_PRESENT;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrier.Transition.Subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES;
+		g_state.commandList->ResourceBarrier(1, &barrier);
+
+		D3D12_CPU_DESCRIPTOR_HANDLE rtvHandle = g_state.rtvHeap->GetCPUDescriptorHandleForHeapStart();
+		rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * g_state.rtvDescriptorSize;
+		g_state.commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
+
+		ID3D12DescriptorHeap* heaps[] = { g_state.srvHeap.Get() };
+		g_state.commandList->SetDescriptorHeaps(1, heaps);
+
+		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
+		ImGui::NewFrame();
+
+		ImGui::Begin("OSF");
+		ImGui::Text("ImGui is alive");
+		ImGui::End();
+
+		ImGui::ShowDemoWindow();
+
+		ImGui::Render();
+		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_state.commandList.Get());
+
+		barrier.Transition.StateBefore = D3D12_RESOURCE_STATE_RENDER_TARGET;
+		barrier.Transition.StateAfter = D3D12_RESOURCE_STATE_PRESENT;
+		g_state.commandList->ResourceBarrier(1, &barrier);
+
+		g_state.commandList->Close();
+
+		ID3D12CommandList* cmdLists[] = { g_state.commandList.Get() };
+		g_state.commandQueue->ExecuteCommandLists(1, cmdLists);
+	}
+
+	void ReleaseRenderTargets()
+	{
+		std::scoped_lock lock(g_state.mutex);
+		DestroyRenderTargets();
+	}
+
+	void RebuildRenderTargets()
+	{
+		std::scoped_lock lock(g_state.mutex);
+
+		if (!g_state.initialized) {
+			return;
+		}
+
+		if (!CreateRenderTargets()) {
+			REX::ERROR("Overlay: failed to rebuild render targets after resize");
+		}
 	}
 }

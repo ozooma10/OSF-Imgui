@@ -7,4 +7,7 @@ namespace Overlay
 {
 	bool InitializeFromSwapChain(IDXGISwapChain* a_swapChain, ID3D12CommandQueue* a_commandQueue);
 	bool IsInitialized();
+	void RenderFrame();
+	void ReleaseRenderTargets();
+	void RebuildRenderTargets();
 }
