@@ -15,7 +15,13 @@ namespace Hooks
 {
 	namespace
 	{
+		constexpr REL::Offset kCreateSwapChainWrapperCallsite{ 0x2A3442D };
 		constexpr std::size_t kCreateSwapChainForHwndVtblIndex = 15;
+
+		using CreateSwapChainWrapperFn = std::int64_t(__fastcall*)(
+			void*,
+			void*,
+			void*);
 
 		using CreateSwapChainForHwndFn = HRESULT(STDMETHODCALLTYPE*)(
 			IDXGIFactory2*,
@@ -28,12 +34,14 @@ namespace Hooks
 
 		std::mutex g_stateLock;
 
+		CreateSwapChainWrapperFn  g_originalCreateSwapChainWrapper{ nullptr };
 		CreateSwapChainForHwndFn g_originalCreateSwapChainForHwnd{ nullptr };
 		ID3D12CommandQueue*      g_commandQueue{ nullptr };
 		ID3D12Device*            g_device{ nullptr };
 		IDXGISwapChain3*         g_swapChain{ nullptr };
 		bool                     g_installed{ false };
 		bool                     g_loggedValidation{ false };
+		std::uint32_t            g_wrapperCallCount{ 0 };
 
 		template <class T>
 		void ReplaceCapturedPointer(T*& a_dst, T* a_src)
@@ -171,6 +179,31 @@ namespace Hooks
 			queue->Release();
 		}
 
+		std::int64_t __fastcall CreateSwapChainWrapper_Hook(
+			void* a_context,
+			void* a_descOrState,
+			void* a_swapChainState)
+		{
+			const auto original = g_originalCreateSwapChainWrapper;
+			if (!original) {
+				return 0;
+			}
+
+			const auto result = original(a_context, a_descOrState, a_swapChainState);
+
+			const auto callCount = ++g_wrapperCallCount;
+			REX::INFO(
+				"Hooks: Starfield swapchain wrapper #{} ctx=0x{:X} desc=0x{:X} state=0x{:X} result=0x{:X}",
+				callCount,
+				reinterpret_cast<std::uintptr_t>(a_context),
+				reinterpret_cast<std::uintptr_t>(a_descOrState),
+				reinterpret_cast<std::uintptr_t>(a_swapChainState),
+				static_cast<std::uint32_t>(result));
+
+			ValidateCapture();
+			return result;
+		}
+
 		HRESULT STDMETHODCALLTYPE CreateSwapChainForHwnd_Hook(
 			IDXGIFactory2* a_factory,
 			IUnknown* a_device,
@@ -217,6 +250,11 @@ namespace Hooks
 		if (g_installed) {
 			return true;
 		}
+
+		REL::Relocation<std::uintptr_t> wrapperCall{ kCreateSwapChainWrapperCallsite };
+		g_originalCreateSwapChainWrapper = reinterpret_cast<CreateSwapChainWrapperFn>(
+			wrapperCall.write_call<5>(&CreateSwapChainWrapper_Hook));
+		REX::INFO("Hooks: installed Starfield swapchain wrapper call hook at 0x{:X}", wrapperCall.address());
 
 		IDXGIFactory2* factory = nullptr;
 		const auto hr = ::CreateDXGIFactory1(IID_PPV_ARGS(&factory));
