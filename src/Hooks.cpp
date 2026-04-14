@@ -22,38 +22,22 @@ namespace Hooks
 					return true;
 				}
 
-				auto& trampoline = SFSE::GetTrampoline();
+				auto& trampoline = REL::GetTrampoline();
 
-				REL::Relocation<std::uintptr_t> primaryCallsite{ REL::Offset(0x2A3442D) };
-				_primaryOriginal = reinterpret_cast<func_t>(
-					trampoline.write_call<5>(primaryCallsite.address(), PrimaryThunk));
+				REL::Relocation<std::uintptr_t> callsite{ REL::ID(141996), 0x130 };
+				_swapChainWrapperOriginal = reinterpret_cast<func_t>(
+					trampoline.write_call<5>(callsite.address(), SwapChainWrapperThunk));
 
-				if (!_primaryOriginal) {
-					REX::ERROR(
-						"SwapChainWrapperHook: failed to install primary hook at {:#x}",
-						primaryCallsite.address());
-					return false;
-				}
-
-				REX::INFO(
-					"SwapChainWrapperHook: installed primary callsite hook at {:#x}",
-					primaryCallsite.address()
-				);
-
-				REL::Relocation<std::uintptr_t> secondaryCallsite{ REL::Offset(0x299E7F0) };
-				_secondaryOriginal = reinterpret_cast<func_t>(
-					trampoline.write_call<5>(secondaryCallsite.address(), SecondaryThunk));
-
-				if (!_secondaryOriginal) {
+				if (!_swapChainWrapperOriginal) {
 					REX::ERROR(
 						"SwapChainWrapperHook: failed to install secondary hook at {:#x}",
-						secondaryCallsite.address());
+						callsite.address());
 					return false;
 				}
 
 				REX::INFO(
 					"SwapChainWrapperHook: installed secondary callsite hook at {:#x}",
-					secondaryCallsite.address()
+					callsite.address()
 				);
 
 				_installed = true;
@@ -66,26 +50,12 @@ namespace Hooks
 				void* a_descOrState,
 				void* a_swapChainState);
 
-			// struct ID
-			// {
-			// 	// Replace with the real Address Library ID for the CALL instruction.
-			// 	static constexpr REL::ID CreateSwapChainWrapperCallsite{ /* TODO */ };
-			// };
-
-			static std::int64_t __fastcall PrimaryThunk(
+			static std::int64_t __fastcall SwapChainWrapperThunk(
 				void* a_context,
 				void* a_descOrState,
 				void* a_swapChainState)
 			{
-				return Invoke("primary", _primaryOriginal, _primaryCallCount, a_context, a_descOrState, a_swapChainState);
-			}
-
-			static std::int64_t __fastcall SecondaryThunk(
-				void* a_context,
-				void* a_descOrState,
-				void* a_swapChainState)
-			{
-				return Invoke("secondary", _secondaryOriginal, _secondaryCallCount, a_context, a_descOrState, a_swapChainState);
+				return Invoke("secondary", _swapChainWrapperOriginal, _callCount, a_context, a_descOrState, a_swapChainState);
 			}
 
 			static std::int64_t Invoke(
@@ -117,10 +87,8 @@ namespace Hooks
 			}
 
 			static inline std::mutex _installLock;
-			static inline std::atomic_uint32_t _primaryCallCount{ 0 };
-			static inline std::atomic_uint32_t _secondaryCallCount{ 0 };
-			static inline func_t _primaryOriginal{ nullptr };
-			static inline func_t _secondaryOriginal{ nullptr };
+			static inline std::atomic_uint32_t _callCount{ 0 };
+			static inline func_t _swapChainWrapperOriginal{ nullptr };
 			static inline bool _installed{ false };
 		};
 	}
