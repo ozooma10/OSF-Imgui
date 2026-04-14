@@ -211,36 +211,38 @@ bool DebugOverlayService::Install()
 		return false;
 	}
 
-	std::unordered_set<void**> patchedFactoryVtables;
-	std::unordered_set<void**> patchedSwapChainVtables;
+	std::unordered_set<void**> patchedFactoryCreateSwapChainVtables;
+	std::unordered_set<void**> patchedFactoryCreateSwapChainForHwndVtables;
+	std::unordered_set<void**> patchedSwapChainPresentVtables;
+	std::unordered_set<void**> patchedSwapChainResizeBuffersVtables;
 
-	PatchInterfaceVtable<IDXGIFactory>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory1>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory2>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory3>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory4>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory5>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory6>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory7>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryVtables);
+	PatchInterfaceVtable<IDXGIFactory>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory1>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory2>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory3>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory4>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory5>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory6>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
+	PatchInterfaceVtable<IDXGIFactory7>(dummyContext.factory.Get(), kCreateSwapChainVtableIndex, &HookCreateSwapChain, _originalCreateSwapChain, patchedFactoryCreateSwapChainVtables);
 
-	PatchInterfaceVtable<IDXGIFactory2>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory3>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory4>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory5>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory6>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryVtables);
-	PatchInterfaceVtable<IDXGIFactory7>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryVtables);
+	PatchInterfaceVtable<IDXGIFactory2>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryCreateSwapChainForHwndVtables);
+	PatchInterfaceVtable<IDXGIFactory3>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryCreateSwapChainForHwndVtables);
+	PatchInterfaceVtable<IDXGIFactory4>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryCreateSwapChainForHwndVtables);
+	PatchInterfaceVtable<IDXGIFactory5>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryCreateSwapChainForHwndVtables);
+	PatchInterfaceVtable<IDXGIFactory6>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryCreateSwapChainForHwndVtables);
+	PatchInterfaceVtable<IDXGIFactory7>(dummyContext.factory.Get(), kCreateSwapChainForHwndVtableIndex, &HookCreateSwapChainForHwnd, _originalCreateSwapChainForHwnd, patchedFactoryCreateSwapChainForHwndVtables);
 
-	PatchInterfaceVtable<IDXGISwapChain>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain1>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain2>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain3>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain4>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainVtables);
+	PatchInterfaceVtable<IDXGISwapChain>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainPresentVtables);
+	PatchInterfaceVtable<IDXGISwapChain1>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainPresentVtables);
+	PatchInterfaceVtable<IDXGISwapChain2>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainPresentVtables);
+	PatchInterfaceVtable<IDXGISwapChain3>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainPresentVtables);
+	PatchInterfaceVtable<IDXGISwapChain4>(dummyContext.swapChain.Get(), kPresentVtableIndex, &HookPresent, _originalPresent, patchedSwapChainPresentVtables);
 
-	PatchInterfaceVtable<IDXGISwapChain>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain1>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain2>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain3>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainVtables);
-	PatchInterfaceVtable<IDXGISwapChain4>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainVtables);
+	PatchInterfaceVtable<IDXGISwapChain>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainResizeBuffersVtables);
+	PatchInterfaceVtable<IDXGISwapChain1>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainResizeBuffersVtables);
+	PatchInterfaceVtable<IDXGISwapChain2>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainResizeBuffersVtables);
+	PatchInterfaceVtable<IDXGISwapChain3>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainResizeBuffersVtables);
+	PatchInterfaceVtable<IDXGISwapChain4>(dummyContext.swapChain.Get(), kResizeBuffersVtableIndex, &HookResizeBuffers, _originalResizeBuffers, patchedSwapChainResizeBuffersVtables);
 
 	_hooksInstalled =
 		_originalCreateSwapChain &&
@@ -249,7 +251,29 @@ bool DebugOverlayService::Install()
 		_originalResizeBuffers;
 
 	if (!_hooksInstalled) {
-		SetLastError("Failed to patch all required DXGI vtables for the debug overlay.");
+		std::vector<std::string_view> missingHooks;
+		if (!_originalCreateSwapChain) {
+			missingHooks.push_back("IDXGIFactory::CreateSwapChain");
+		}
+		if (!_originalCreateSwapChainForHwnd) {
+			missingHooks.push_back("IDXGIFactory2::CreateSwapChainForHwnd");
+		}
+		if (!_originalPresent) {
+			missingHooks.push_back("IDXGISwapChain::Present");
+		}
+		if (!_originalResizeBuffers) {
+			missingHooks.push_back("IDXGISwapChain::ResizeBuffers");
+		}
+
+		std::string message = "Failed to patch all required DXGI vtables for the debug overlay. Missing hooks: ";
+		for (std::size_t index = 0; index < missingHooks.size(); ++index) {
+			if (index > 0) {
+				message += ", ";
+			}
+			message += missingHooks[index];
+		}
+
+		SetLastError(std::move(message));
 		return false;
 	}
 
