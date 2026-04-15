@@ -1,4 +1,5 @@
 #include "Overlay.h"
+#include "UIManager.h"
 
 #include <cstdint>
 #include <mutex>
@@ -25,15 +26,17 @@ namespace Overlay
 
 		struct DescriptorHeapAllocator
 		{
-			bool Create(ID3D12Device* a_device, ID3D12DescriptorHeap* a_heap)
+			bool Create(ID3D12Device *a_device, ID3D12DescriptorHeap *a_heap)
 			{
-				if (!a_device || !a_heap) {
+				if (!a_device || !a_heap)
+				{
 					return false;
 				}
 
 				const auto desc = a_heap->GetDesc();
 				if (desc.Type != D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV ||
-					(desc.Flags & D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE) == 0) {
+					(desc.Flags & D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE) == 0)
+				{
 					return false;
 				}
 
@@ -46,7 +49,8 @@ namespace Overlay
 
 				freeIndices.clear();
 				freeIndices.reserve(desc.NumDescriptors);
-				for (UINT i = 0; i < desc.NumDescriptors; ++i) {
+				for (UINT i = 0; i < desc.NumDescriptors; ++i)
+				{
 					freeIndices.push_back(static_cast<int>(desc.NumDescriptors - i - 1));
 				}
 
@@ -54,16 +58,18 @@ namespace Overlay
 			}
 
 			bool Allocate(
-				D3D12_CPU_DESCRIPTOR_HANDLE* a_outCpuHandle,
-				D3D12_GPU_DESCRIPTOR_HANDLE* a_outGpuHandle)
+				D3D12_CPU_DESCRIPTOR_HANDLE *a_outCpuHandle,
+				D3D12_GPU_DESCRIPTOR_HANDLE *a_outGpuHandle)
 			{
-				if (!a_outCpuHandle || !a_outGpuHandle) {
+				if (!a_outCpuHandle || !a_outGpuHandle)
+				{
 					return false;
 				}
 
 				std::scoped_lock lock(mutex);
 
-				if (!heap || freeIndices.empty()) {
+				if (!heap || freeIndices.empty())
+				{
 					return false;
 				}
 
@@ -81,7 +87,8 @@ namespace Overlay
 			{
 				std::scoped_lock lock(mutex);
 
-				if (!heap || increment == 0) {
+				if (!heap || increment == 0)
+				{
 					return;
 				}
 
@@ -90,7 +97,8 @@ namespace Overlay
 				const auto cpuIndex = static_cast<int>(cpuOffset / increment);
 				const auto gpuIndex = static_cast<int>(gpuOffset / increment);
 
-				if (cpuIndex >= 0 && cpuIndex == gpuIndex) {
+				if (cpuIndex >= 0 && cpuIndex == gpuIndex)
+				{
 					freeIndices.push_back(cpuIndex);
 				}
 			}
@@ -99,24 +107,24 @@ namespace Overlay
 			ComPtr<ID3D12DescriptorHeap> heap;
 			D3D12_CPU_DESCRIPTOR_HANDLE heapStartCpu{};
 			D3D12_GPU_DESCRIPTOR_HANDLE heapStartGpu{};
-			UINT increment{ 0 };
+			UINT increment{0};
 			std::vector<int> freeIndices;
 		};
 
 		struct RuntimeState
 		{
 			std::mutex mutex;
-			bool initialized{ false };
+			bool initialized{false};
 			ComPtr<IDXGISwapChain3> swapChain;
 			ComPtr<ID3D12Device> device;
 			ComPtr<ID3D12CommandQueue> commandQueue;
 			ComPtr<ID3D12DescriptorHeap> srvHeap;
-			HWND hwnd{ nullptr };
-			UINT framesInFlight{ 2 };
-			DXGI_FORMAT rtvFormat{ DXGI_FORMAT_R8G8B8A8_UNORM };
+			HWND hwnd{nullptr};
+			UINT framesInFlight{2};
+			DXGI_FORMAT rtvFormat{DXGI_FORMAT_R8G8B8A8_UNORM};
 			DescriptorHeapAllocator srvAllocator;
 			ComPtr<ID3D12DescriptorHeap> rtvHeap;
-			UINT rtvDescriptorSize{ 0 };
+			UINT rtvDescriptorSize{0};
 			std::vector<ComPtr<ID3D12Resource>> backBuffers;
 			std::vector<ComPtr<ID3D12CommandAllocator>> commandAllocators;
 			ComPtr<ID3D12GraphicsCommandList> commandList;
@@ -125,17 +133,18 @@ namespace Overlay
 		RuntimeState g_state;
 
 		void AllocateSrvDescriptor(
-			ImGui_ImplDX12_InitInfo*,
-			D3D12_CPU_DESCRIPTOR_HANDLE* a_outCpuHandle,
-			D3D12_GPU_DESCRIPTOR_HANDLE* a_outGpuHandle)
+			ImGui_ImplDX12_InitInfo *,
+			D3D12_CPU_DESCRIPTOR_HANDLE *a_outCpuHandle,
+			D3D12_GPU_DESCRIPTOR_HANDLE *a_outGpuHandle)
 		{
-			if (!g_state.srvAllocator.Allocate(a_outCpuHandle, a_outGpuHandle)) {
+			if (!g_state.srvAllocator.Allocate(a_outCpuHandle, a_outGpuHandle))
+			{
 				REX::ERROR("Overlay: failed to allocate a shader-visible SRV descriptor for ImGui");
 			}
 		}
 
 		void FreeSrvDescriptor(
-			ImGui_ImplDX12_InitInfo*,
+			ImGui_ImplDX12_InitInfo *,
 			D3D12_CPU_DESCRIPTOR_HANDLE a_cpuHandle,
 			D3D12_GPU_DESCRIPTOR_HANDLE a_gpuHandle)
 		{
@@ -145,7 +154,8 @@ namespace Overlay
 		bool CreateRenderTargets()
 		{
 			DXGI_SWAP_CHAIN_DESC desc{};
-			if (FAILED(g_state.swapChain->GetDesc(&desc))) {
+			if (FAILED(g_state.swapChain->GetDesc(&desc)))
+			{
 				REX::ERROR("Overlay: failed to read swap-chain desc for render targets");
 				return false;
 			}
@@ -158,7 +168,8 @@ namespace Overlay
 			rtvHeapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
 
 			if (FAILED(g_state.device->CreateDescriptorHeap(
-					&rtvHeapDesc, IID_PPV_ARGS(g_state.rtvHeap.ReleaseAndGetAddressOf())))) {
+					&rtvHeapDesc, IID_PPV_ARGS(g_state.rtvHeap.ReleaseAndGetAddressOf()))))
+			{
 				REX::ERROR("Overlay: failed to create RTV descriptor heap");
 				return false;
 			}
@@ -168,9 +179,11 @@ namespace Overlay
 
 			g_state.backBuffers.resize(bufferCount);
 			auto rtvHandle = g_state.rtvHeap->GetCPUDescriptorHandleForHeapStart();
-			for (UINT i = 0; i < bufferCount; ++i) {
+			for (UINT i = 0; i < bufferCount; ++i)
+			{
 				if (FAILED(g_state.swapChain->GetBuffer(
-						i, IID_PPV_ARGS(g_state.backBuffers[i].ReleaseAndGetAddressOf())))) {
+						i, IID_PPV_ARGS(g_state.backBuffers[i].ReleaseAndGetAddressOf()))))
+				{
 					REX::ERROR("Overlay: failed to get back buffer {}", i);
 					return false;
 				}
@@ -180,10 +193,12 @@ namespace Overlay
 			}
 
 			g_state.commandAllocators.resize(bufferCount);
-			for (UINT i = 0; i < bufferCount; ++i) {
+			for (UINT i = 0; i < bufferCount; ++i)
+			{
 				if (FAILED(g_state.device->CreateCommandAllocator(
 						D3D12_COMMAND_LIST_TYPE_DIRECT,
-						IID_PPV_ARGS(g_state.commandAllocators[i].ReleaseAndGetAddressOf())))) {
+						IID_PPV_ARGS(g_state.commandAllocators[i].ReleaseAndGetAddressOf()))))
+				{
 					REX::ERROR("Overlay: failed to create command allocator {}", i);
 					return false;
 				}
@@ -192,7 +207,8 @@ namespace Overlay
 			if (FAILED(g_state.device->CreateCommandList(
 					0, D3D12_COMMAND_LIST_TYPE_DIRECT,
 					g_state.commandAllocators[0].Get(), nullptr,
-					IID_PPV_ARGS(g_state.commandList.ReleaseAndGetAddressOf())))) {
+					IID_PPV_ARGS(g_state.commandList.ReleaseAndGetAddressOf()))))
+			{
 				REX::ERROR("Overlay: failed to create command list");
 				return false;
 			}
@@ -212,37 +228,43 @@ namespace Overlay
 		}
 	}
 
-	bool InitializeFromSwapChain(IDXGISwapChain* a_swapChain, ID3D12CommandQueue* a_commandQueue)
+	bool InitializeFromSwapChain(IDXGISwapChain *a_swapChain, ID3D12CommandQueue *a_commandQueue)
 	{
-		if (!a_swapChain || !a_commandQueue) {
+		if (!a_swapChain || !a_commandQueue)
+		{
 			return false;
 		}
 
 		std::scoped_lock lock(g_state.mutex);
 
-		if (g_state.initialized) {
+		if (g_state.initialized)
+		{
 			return true;
 		}
 
 		ComPtr<IDXGISwapChain3> swapChain3;
-		if (FAILED(a_swapChain->QueryInterface(IID_PPV_ARGS(swapChain3.GetAddressOf())))) {
+		if (FAILED(a_swapChain->QueryInterface(IID_PPV_ARGS(swapChain3.GetAddressOf()))))
+		{
 			REX::ERROR("Overlay: failed to upgrade the swap chain to IDXGISwapChain3");
 			return false;
 		}
 
 		ComPtr<ID3D12Device> device;
-		if (FAILED(a_swapChain->GetDevice(IID_PPV_ARGS(device.GetAddressOf())))) {
+		if (FAILED(a_swapChain->GetDevice(IID_PPV_ARGS(device.GetAddressOf()))))
+		{
 			REX::ERROR("Overlay: failed to retrieve ID3D12Device from the swap chain");
 			return false;
 		}
 
 		DXGI_SWAP_CHAIN_DESC swapChainDesc{};
-		if (FAILED(a_swapChain->GetDesc(&swapChainDesc))) {
+		if (FAILED(a_swapChain->GetDesc(&swapChainDesc)))
+		{
 			REX::ERROR("Overlay: failed to read the swap-chain description");
 			return false;
 		}
 
-		if (!swapChainDesc.OutputWindow) {
+		if (!swapChainDesc.OutputWindow)
+		{
 			REX::ERROR("Overlay: swap-chain output window is null");
 			return false;
 		}
@@ -253,12 +275,14 @@ namespace Overlay
 		heapDesc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
 
 		ComPtr<ID3D12DescriptorHeap> srvHeap;
-		if (FAILED(device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(srvHeap.GetAddressOf())))) {
+		if (FAILED(device->CreateDescriptorHeap(&heapDesc, IID_PPV_ARGS(srvHeap.GetAddressOf()))))
+		{
 			REX::ERROR("Overlay: failed to create the ImGui SRV descriptor heap");
 			return false;
 		}
 
-		if (!g_state.srvAllocator.Create(device.Get(), srvHeap.Get())) {
+		if (!g_state.srvAllocator.Create(device.Get(), srvHeap.Get()))
+		{
 			REX::ERROR("Overlay: failed to initialize the ImGui descriptor allocator");
 			return false;
 		}
@@ -267,10 +291,11 @@ namespace Overlay
 		ImGui::CreateContext();
 		ImGui::StyleColorsDark();
 
-		ImGuiIO& io = ImGui::GetIO();
+		ImGuiIO &io = ImGui::GetIO();
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
 
-		if (!ImGui_ImplWin32_Init(swapChainDesc.OutputWindow)) {
+		if (!ImGui_ImplWin32_Init(swapChainDesc.OutputWindow))
+		{
 			REX::ERROR("Overlay: ImGui Win32 backend initialization failed");
 			ImGui::DestroyContext();
 			return false;
@@ -286,7 +311,8 @@ namespace Overlay
 		initInfo.SrvDescriptorAllocFn = AllocateSrvDescriptor;
 		initInfo.SrvDescriptorFreeFn = FreeSrvDescriptor;
 
-		if (!ImGui_ImplDX12_Init(&initInfo)) {
+		if (!ImGui_ImplDX12_Init(&initInfo))
+		{
 			REX::ERROR("Overlay: ImGui DX12 backend initialization failed");
 			ImGui_ImplWin32_Shutdown();
 			ImGui::DestroyContext();
@@ -302,7 +328,8 @@ namespace Overlay
 		g_state.rtvFormat = swapChainDesc.BufferDesc.Format;
 		g_state.initialized = true;
 
-		if (!CreateRenderTargets()) {
+		if (!CreateRenderTargets())
+		{
 			REX::ERROR("Overlay: render target creation failed; rendering will be disabled");
 		}
 
@@ -325,13 +352,14 @@ namespace Overlay
 	{
 		std::scoped_lock lock(g_state.mutex);
 
-		if (!g_state.initialized || g_state.backBuffers.empty()) {
+		if (!g_state.initialized || g_state.backBuffers.empty())
+		{
 			return;
 		}
 
 		const UINT frameIndex = g_state.swapChain->GetCurrentBackBufferIndex();
 
-		auto& cmdAllocator = g_state.commandAllocators[frameIndex];
+		auto &cmdAllocator = g_state.commandAllocators[frameIndex];
 		cmdAllocator->Reset();
 		g_state.commandList->Reset(cmdAllocator.Get(), nullptr);
 
@@ -347,7 +375,7 @@ namespace Overlay
 		rtvHandle.ptr += static_cast<SIZE_T>(frameIndex) * g_state.rtvDescriptorSize;
 		g_state.commandList->OMSetRenderTargets(1, &rtvHandle, FALSE, nullptr);
 
-		ID3D12DescriptorHeap* heaps[] = { g_state.srvHeap.Get() };
+		ID3D12DescriptorHeap *heaps[] = {g_state.srvHeap.Get()};
 		g_state.commandList->SetDescriptorHeaps(1, heaps);
 
 		ImGui_ImplDX12_NewFrame();
@@ -357,8 +385,7 @@ namespace Overlay
 		ImGui::Begin("OSF");
 		ImGui::Text("ImGui is alive");
 		ImGui::End();
-
-		ImGui::ShowDemoWindow();
+		UIManager::DrawFrame();
 
 		ImGui::Render();
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_state.commandList.Get());
@@ -369,7 +396,7 @@ namespace Overlay
 
 		g_state.commandList->Close();
 
-		ID3D12CommandList* cmdLists[] = { g_state.commandList.Get() };
+		ID3D12CommandList *cmdLists[] = {g_state.commandList.Get()};
 		g_state.commandQueue->ExecuteCommandLists(1, cmdLists);
 	}
 
@@ -383,11 +410,13 @@ namespace Overlay
 	{
 		std::scoped_lock lock(g_state.mutex);
 
-		if (!g_state.initialized) {
+		if (!g_state.initialized)
+		{
 			return;
 		}
 
-		if (!CreateRenderTargets()) {
+		if (!CreateRenderTargets())
+		{
 			REX::ERROR("Overlay: failed to rebuild render targets after resize");
 		}
 	}

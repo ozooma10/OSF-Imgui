@@ -88,7 +88,7 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void *a_context,
 
 	if (Overlay::IsInitialized())
 	{
-		return;
+		return 0;
 	}
 
 	IDXGISwapChain *swapChain = nullptr;
@@ -113,7 +113,6 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void *a_context,
 		{
 			// InstallDXGIHooks(swapChain);
 		}
-		return;
 	}
 
 	if (!loggedMissingData.exchange(true, std::memory_order_relaxed))
