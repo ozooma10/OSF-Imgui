@@ -5,11 +5,48 @@
       "name": "RendererRoot",
       "size": "0xC0",
       "fields": [
-        { "offset": "0x28", "type": "pointer", "name": "queueOwnerA", "comment": "-> QueueOwnerA, leads to ID3D12CommandQueue" },
-        { "offset": "0x30", "type": "pointer", "name": "dxgiDeviceWrapper", "comment": "D3D12/DXGI device+factory wrapper. Used for all swap chain ops (create, query, configure)." },
+        { "offset": "0x28", "type": "pointer", "name": "queueOwnerA", "comment": "-> QueueOwnerA -> QueueOwnerB -> ID3D12CommandQueue" },
+        { "offset": "0x30", "type": "pointer", "name": "pDeviceProperties", "comment": "Bethesda name from error strings. DXGI device/factory wrapper; +0x408 = IDXGIFactory2*" },
         { "offset": "0x68", "type": "pointer", "name": "renderCmdContext", "comment": "Render command context; +0x30 -> command queue allocator struct" }
       ],
-      "comment": "Actual size unknown, at least 0xB8 based on Engine_Shutdown access at [1].0x1d = offset 0xB5"
+      "comment": "Actual size unknown, at least 0xB8. Bethesda internal name may be part of a 'deviceProperties' hierarchy."
+    },
+    {
+      "name": "DeviceProperties",
+      "size": "0x590",
+      "fields": [
+        { "offset": "0x18", "type": "pointer", "name": "renderState", "comment": "Alloc'd 0x28-byte struct (5 qwords, zeroed)" },
+        { "offset": "0x130", "type": "pointer", "name": "pAGSContext", "comment": "AMD GPU Services context from agsInitialize (NULL on non-AMD)" },
+        { "offset": "0x140", "type": "int", "name": "maxTextureDim", "comment": "= 0x200 (512)" },
+        { "offset": "0x144", "type": "int", "name": "maxCubeMapDim", "comment": "= 0x100 (256)" },
+        { "offset": "0x148", "type": "int", "name": "maxVolumeDim", "comment": "= 0x100 (256)" },
+        { "offset": "0x14C", "type": "int", "name": "maxAnisotropy", "comment": "= 0x20 (32)" },
+        { "offset": "0x150", "type": "int", "name": "gpuFeatureField", "comment": "From GPU desc +0x98" },
+        { "offset": "0x154", "type": "int", "name": "gpuFeatureField2", "comment": "From GPU desc +0x9C" },
+        { "offset": "0x158", "type": "int", "name": "shaderModel", "comment": "From GPU desc +0x90" },
+        { "offset": "0x160", "type": "byte", "name": "tessellationLevel", "comment": "0=none, 3=partial, 6=full (based on GPU caps)" },
+        { "offset": "0x161", "type": "byte", "name": "gpuCapFlags", "comment": "Bitfield from adapter desc flags" },
+        { "offset": "0x168", "type": "qword", "name": "dedicatedVideoMem", "comment": "From GPU desc +0x80" },
+        { "offset": "0x170", "type": "qword", "name": "sharedSystemMem", "comment": "From GPU desc +0x88" },
+        { "offset": "0x178", "type": "byte", "name": "gpuVendorName", "comment": "char[64] from GPU desc vendor string" },
+        { "offset": "0x1B8", "type": "byte", "name": "gpuFeatureStr1", "comment": "char[64] D3D12 options string" },
+        { "offset": "0x1F8", "type": "byte", "name": "gpuFeatureStr2", "comment": "char[64] D3D12 options string" },
+        { "offset": "0x238", "type": "byte", "name": "gpuName", "comment": "char[64] GPU name from adapter desc (registered as 'gpu_name' condition var)" },
+        { "offset": "0x27A", "type": "byte", "name": "formatSupportTable", "comment": "0x79 * 3 bytes = per-format support flags from CheckFeatureSupport(FORMAT_SUPPORT)" },
+        { "offset": "0x3E8", "type": "pointer", "name": "adapterInfoBegin", "comment": "BSTArray<AdapterInfo> begin; each entry 0x48 bytes" },
+        { "offset": "0x3F0", "type": "pointer", "name": "adapterInfoEnd", "comment": "BSTArray<AdapterInfo> current end pointer" },
+        { "offset": "0x400", "type": "int", "name": "selectedFeatureLevel", "comment": "D3D_FEATURE_LEVEL used for D3D12CreateDevice (0xC000/C100/C200)" },
+        { "offset": "0x408", "type": "pointer", "name": "pDXGIFactory", "comment": "IDXGIFactory2*; Bethesda: arDeviceProperties.pDXGIFactory" },
+        { "offset": "0x410", "type": "pointer", "name": "pDxActiveGPU", "comment": "IDXGIAdapter3/4*; Bethesda: arDeviceProperties.pDxActiveGPU" },
+        { "offset": "0x418", "type": "pointer", "name": "pDxDevice", "comment": "ID3D12Device*; Bethesda: arDeviceProperties.pDxDevice. Created via AGS or D3D12CreateDevice." },
+        { "offset": "0x538", "type": "int", "name": "gpuFieldA", "comment": "From GPU desc +0x64 (resource tier?)" },
+        { "offset": "0x53C", "type": "int", "name": "gpuFieldB", "comment": "From GPU desc +0x2C" },
+        { "offset": "0x570", "type": "pointer", "name": "pDebugInterface", "comment": "ID3D12Debug3* (optional, if debug layer enabled)" },
+        { "offset": "0x578", "type": "pointer", "name": "pDebugFallback", "comment": "ID3D12Debug* (fallback if Debug3 QI fails)" },
+        { "offset": "0x580", "type": "pointer", "name": "pDeviceQI_A", "comment": "QI'd interface from ID3D12Device (feature query?)" },
+        { "offset": "0x588", "type": "pointer", "name": "pDeviceQI_B", "comment": "Fallback QI from ID3D12Device" }
+      ],
+      "comment": "Bethesda name: arDeviceProperties. Central D3D12/DXGI device properties struct. At least 0x590 bytes. Holds factory, adapter, device, GPU caps, format support, and display info."
     },
     {
       "name": "QueueOwnerA",
@@ -27,10 +64,25 @@
     },
     {
       "name": "GameSwapChainWrapper",
-      "size": "0x48",
+      "size": "0xD8",
       "fields": [
-        { "offset": "0x40", "type": "pointer", "name": "dxgiSwapChain", "comment": "IDXGISwapChain*" }
-      ]
+        { "offset": "0x00", "type": "pointer", "name": "hwnd", "comment": "HWND for this swap chain's window" },
+        { "offset": "0x08", "type": "dword", "name": "configA" },
+        { "offset": "0x10", "type": "dword", "name": "bufferCount", "comment": "Number of swap chain buffers" },
+        { "offset": "0x14", "type": "byte", "name": "sampleCount", "comment": "MSAA sample count; clamped to 1" },
+        { "offset": "0x24", "type": "byte", "name": "stereoEnabled" },
+        { "offset": "0x28", "type": "dword", "name": "swapEffect", "comment": "DXGI_SWAP_EFFECT; init 2 (FLIP_SEQUENTIAL)" },
+        { "offset": "0x30", "type": "pointer", "name": "pDeviceProperties", "comment": "Back-pointer to the DXGI device wrapper (RendererRoot+0x30)" },
+        { "offset": "0x40", "type": "pointer", "name": "pDxSwapChain", "comment": "IDXGISwapChain3/4* (QI'd from CreateSwapChainForHwnd result). Bethesda name: pSwapChain->pDxSwapChain" },
+        { "offset": "0x48", "type": "pointer", "name": "frameLatencyHandle", "comment": "HANDLE from IDXGISwapChain2::GetFrameLatencyWaitableObject; init INVALID_HANDLE_VALUE" },
+        { "offset": "0x50", "type": "dword", "name": "presentFlags" },
+        { "offset": "0x54", "type": "dword", "name": "flags" },
+        { "offset": "0x58", "type": "dword", "name": "backBufferArrayCount" },
+        { "offset": "0x60", "type": "dword", "name": "backBufferArrayCapacity", "comment": "Inline small-array; 0x80000000 = use inline storage" },
+        { "offset": "0xA8", "type": "dword", "name": "renderTargetArrayCount" },
+        { "offset": "0xB0", "type": "dword", "name": "renderTargetArrayCapacity", "comment": "Inline small-array; 0x80000000 = use inline storage" }
+      ],
+      "comment": "Allocated as 0xD8 bytes. Bethesda name: pSwapChain (from error strings). Wraps IDXGISwapChain3/4 with buffer management."
     }
   ],
   "globals": [
@@ -91,6 +143,23 @@
     { "address": "0x145fa83c8", "name": "g_DisplayTargetCount", "comment": "Number of display targets/HWNDs in g_DisplayTargetArray" },
     { "address": "0x145fa83d0", "name": "g_DisplayTargetArray", "comment": "Array of display target identifiers (HWNDs?); searched during swap chain init" },
     { "address": "0x145943e30", "name": "g_SwapChainConfigByte", "comment": "Single byte copied into swap chain descriptor at +0x29" },
+    { "address": "0x144dbf140", "name": "IID_IDXGISwapChain3or4", "comment": "GUID used for QueryInterface on the swap chain after creation" },
+    { "address": "0x145faa550", "name": "g_bD3D12DebugLayerEnabled", "comment": "When set, calls D3D12GetDebugInterface during device init" },
+    { "address": "0x145e7e359", "name": "g_bResourceTierBasic", "comment": "Set if GPU resource tier is 0 or 10; cleared otherwise" },
+    { "address": "0x145e7e35a", "name": "g_bAGSDeviceCreated", "comment": "Set to 1 if AGS CreateDevice succeeded with bit 4 flag" },
+    { "address": "0x145fa70d0", "name": "g_GraphicsQualityPreset", "comment": "Registered as 'graphics.quality' condition var" },
+    { "address": "0x144dbbea8", "name": "IID_ID3D12Debug3", "comment": "GUID for D3D12GetDebugInterface primary attempt" },
+    { "address": "0x144dbbeb8", "name": "IID_ID3D12Debug", "comment": "GUID for D3D12GetDebugInterface fallback" },
+    { "address": "0x144dbbec8", "name": "IID_IDXGIFactory", "comment": "GUID passed to CreateDXGIFactory2" },
+    { "address": "0x144dbbed8", "name": "IID_IDXGIAdapter", "comment": "GUID passed to EnumAdapterByGpuPreference" },
+    { "address": "0x144edf070", "name": "IID_IDXGIOutput1", "comment": "GUID for QI from IDXGIOutput to IDXGIOutput1 (for GetDisplayModeList1)" },
+    { "address": "0x144dbbee8", "name": "IID_ID3D12Device_Probe", "comment": "GUID used for D3D12CreateDevice during adapter probing" },
+    { "address": "0x144dbbef8", "name": "IID_IDXGIAdapter3or4", "comment": "GUID for QI adapter to pDxActiveGPU" },
+    { "address": "0x144dbbf08", "name": "IID_DriverVersion", "comment": "GUID passed to adapter CheckInterfaceSupport for driver version" },
+    { "address": "0x144dbbf18", "name": "IID_ID3D12Device", "comment": "GUID for final D3D12CreateDevice (non-AGS path)" },
+    { "address": "0x144dbbf28", "name": "IID_DeviceQI_A", "comment": "GUID for QI on ID3D12Device -> pDeviceQI_A (+0x580)" },
+    { "address": "0x144dbbf38", "name": "IID_DeviceQI_B", "comment": "GUID for fallback QI on ID3D12Device -> pDeviceQI_B (+0x588)" },
+    { "address": "0x145944420", "name": "g_BackBufferFormatCode", "comment": "Char code selecting DXGI_FORMAT: '$'=R8G8B8A8, ')'=R10G10B10A2, '>'=B8G8R8A8(?), 'M'=R16G16B16A16_FLOAT" },
     { "address": "0x1461ea098", "name": "g_AnimationManager", "comment": "Accessed at +0x58 during shutdown" },
     { "address": "0x145fe18f8", "name": "g_AudioManager", "comment": "Destroyed during late shutdown" },
     { "address": "0x145fb7bf8", "name": "g_NiObjectPool", "comment": "Cleaned with FUN_14061f620(+0x1c0), freed with aligned dealloc(0x200, 0x40)" },
@@ -103,7 +172,15 @@
     { "address": "0x145e688df", "name": "g_bProfilingEnabled", "comment": "Controls profiling data cleanup during shutdown" },
     { "address": "0x1458dd8f4", "name": "g_ShutdownTimeoutScale", "comment": "Multiplied by 30000.0 for shutdown timeout (QueryPerformanceCounter)" },
     { "address": "0x145fc7e60", "name": "g_D3DDevice", "comment": "Called with vtable+0x10 for cleanup, then destroyed" },
-    { "address": "0x146202a50", "name": "g_GPUMemoryManager", "comment": "Destroyed near end of shutdown" }
+    { "address": "0x146202a50", "name": "g_GPUMemoryManager", "comment": "Destroyed near end of shutdown" },
+
+    { "address": "0x145fe1a50", "name": "g_WndProcContext", "comment": "WndProc context pointer; +0x60=app state, +0x70->mouse input obj (+0x8c/+0x90=mouseX/Y), +0x88->IME callback obj" },
+    { "address": "0x1459227b1", "name": "g_bInputEnabled", "comment": "Gates WM_INPUT, WM_CHAR, WM_MOUSEMOVE processing in MainWndProc" },
+    { "address": "0x145f67ca0", "name": "g_bCursorVisible", "comment": "Controls cursor show/hide in WM_SETCURSOR; when set + outside client area, shows cursor" },
+    { "address": "0x14597b6c1", "name": "g_bCursorShown", "comment": "Tracks ShowCursor state; toggled by MainWndProc WM_SETCURSOR handler" },
+    { "address": "0x1461f6850", "name": "g_CharInputDispatcher", "comment": "Character input dispatch; +0xb50=input slot array (0x30 each, max 15), +0x1288=lock, +0x1290/+0x1298=linked list head/tail" },
+    { "address": "0x145f4b378", "name": "g_bSuppressActivation", "comment": "When nonzero, blocks InputManager_HandleActivation on WM_ACTIVATE" },
+    { "address": "0x145f67820", "name": "g_bBlockSysCommands", "comment": "When set, blocks SC_SCREENSAVE and SC_MONITORPOWER regardless of app state" }
   ],
   "functions": [
     { "address": "0x14083d990", "name": "ApplyUpscalingSettingsChange", "comment": "Handles upscaling/VRS/FSR2 setting changes and submits render commands" },
@@ -130,7 +207,17 @@
     { "address": "0x14189fbf0", "name": "Renderer_PostRender" },
 
     { "address": "0x14299E6C0", "name": "Renderer_InitSwapChainWrapper", "comment": "Contains the call site hooked by SwapChainWrapperHook at +0x130" },
-    { "address": "0x142A34A90", "name": "Renderer_CreateSwapChainForHwnd" },
+    { "address": "0x142A34A90", "name": "Renderer_CreateSwapChainForHwnd", "comment": "Calls IDXGIFactory2::CreateSwapChainForHwnd, MakeWindowAssociation, and QI to IDXGISwapChain3/4. Allocates 0xD8-byte GameSwapChainWrapper." },
+    { "address": "0x142a34820", "name": "SwapChain_BuildDXGIDesc", "comment": "Builds DXGI_SWAP_CHAIN_DESC1 from GameSwapChainWrapper fields" },
+    { "address": "0x142a344c0", "name": "SwapChain_PostCreate", "comment": "Post-creation setup after CreateSwapChainForHwnd succeeds" },
+    { "address": "0x1422c9910", "name": "MemAlloc", "comment": "Allocates memory (used for 0xD8-byte swap chain wrapper)" },
+    { "address": "0x1403271d0", "name": "FormatHRESULTError", "comment": "Stores HRESULT error context string for diagnostics" },
+    { "address": "0x142ab20a0", "name": "ReportDXGIError", "comment": "Reports DXGI HRESULT errors with context string" },
+    { "address": "0x1429d43e0", "name": "DeviceProperties_InitD3D12", "comment": "Core D3D12 init: debug layer, CreateDXGIFactory2, adapter enum, D3D12CreateDevice (with AGS path for AMD), feature queries, format support check. Populates DeviceProperties struct." },
+    { "address": "0x142adb350", "name": "DeviceProperties_EnumAdaptersAndOutputs", "comment": "Creates IDXGIFactory2, enumerates adapters (GPU preference=HIGH_PERF), outputs, monitors, and display modes. Populates pDeviceProperties+0x3E8 array." },
+    { "address": "0x1415184f0", "name": "AdapterInfo_Cleanup", "comment": "Cleans up a 0x48-byte adapter info entry" },
+    { "address": "0x141518400", "name": "AdapterInfo_CopyConstruct", "comment": "Copy-constructs a 0x48-byte adapter info entry into the array" },
+    { "address": "0x142adc170", "name": "AdapterInfoArray_Grow", "comment": "Grows the adapter info array when at capacity" },
     { "address": "0x142ab9270", "name": "DXGIWrapper_QuerySwapChain", "comment": "Queries existing swap chain state from the DXGI device wrapper" },
     { "address": "0x14299e610", "name": "SwapChain_BuildConfig", "comment": "Builds swap chain config struct from params before creation" },
     { "address": "0x142a19410", "name": "DXGIWrapper_ReleaseSwapChain", "comment": "Releases/destroys an existing swap chain" },
@@ -148,11 +235,24 @@
     { "address": "0x140365b30", "name": "FlushBeforeDestroy", "comment": "Flush/finalize an object before destruction; called with (ptr, 1)" },
     { "address": "0x142922bb0", "name": "RenderCmd_SceneLoad_Execute", "comment": "Callback for scene load render command (submitted from Engine_ProcessStateTransition)" },
     { "address": "0x142313660", "name": "RegisterConditionVar", "comment": "Registers a named condition variable; called with ('loading_menu', 'Is loading screen open')" },
+    { "address": "0x142313520", "name": "RegisterConditionVarDirect", "comment": "Registers a condition var with direct value; used for 'graphics.quality', 'driver_version', 'gpu_name'" },
+    { "address": "0x1429d4080", "name": "GetDXGIFormatForIndex", "comment": "Maps format index (0-0x78) to DXGI_FORMAT enum value for format support checking" },
+    { "address": "0x1429d8960", "name": "SortGPUDescriptors", "comment": "Sorts GPU descriptors by preference; called after adapter enumeration" },
+    { "address": "0x142a32ee0", "name": "RendererRoot_ApplyDeviceCaps", "comment": "Applies device capabilities from DeviceProperties to RendererRoot fields" },
     { "address": "0x142557980", "name": "ScaleformNotifyMovie", "comment": "Notifies/invokes on a Scaleform movie; 3rd arg = event type (2=common)" },
     { "address": "0x1425442b0", "name": "ScaleformLoadMovie", "comment": "Loads a Scaleform/GFx movie; returns success char" },
     { "address": "0x140bc64f0", "name": "RenderCmd_Shutdown_Execute", "comment": "Callback for the shutdown render command submitted via AllocRenderCommand" },
     { "address": "0x14083ef10", "name": "Renderer_Cleanup", "comment": "Called near end of shutdown after WSACleanup" },
     { "address": "0x14293d390", "name": "Renderer_FinalCleanup", "comment": "Called after Renderer_Cleanup during shutdown" },
-    { "address": "0x142bf2cd0", "name": "CleanupNiNodePool", "comment": "Called with string 'BSFaceGenNiNode' during shutdown" }
+    { "address": "0x142bf2cd0", "name": "CleanupNiNodePool", "comment": "Called with string 'BSFaceGenNiNode' during shutdown" },
+
+    { "address": "0x141883450", "name": "MainWndProc", "comment": "Main window procedure (WNDPROC). Handles WM_CREATE, WM_DESTROY, WM_ACTIVATE, WM_SETCURSOR, WM_WINDOWPOSCHANGED, WM_DISPLAYCHANGE, WM_INPUT, WM_CHAR, WM_IME_COMPOSITION, WM_SYSCOMMAND, WM_MOUSEMOVE" },
+    { "address": "0x141893850", "name": "InputManager_HandleActivation", "comment": "Called on WM_ACTIVATE; handles focus gain/loss for input system" },
+    { "address": "0x1422d9fc0", "name": "ProcessRawInput", "comment": "Processes WM_INPUT raw input messages" },
+    { "address": "0x1422dd180", "name": "DispatchCharInput", "comment": "Dispatches a character input event; called from WM_CHAR after codepage conversion" },
+    { "address": "0x14249a4f0", "name": "WindowRect_SetPosition", "comment": "Sets position on a rect object; called with (g_AudioManager+0x10, x, y) from WM_WINDOWPOSCHANGED" },
+    { "address": "0x14249a6a0", "name": "WindowRect_SetClientSize", "comment": "Sets client size on a rect object; called with (g_AudioManager+0x10, w, h) after AdjustWindowRectEx" },
+    { "address": "0x14249acb0", "name": "WindowRect_OnDisplayChange", "comment": "Updates rect object on WM_DISPLAYCHANGE; called with g_AudioManager+0x10" },
+    { "address": "0x142499f30", "name": "WindowRect_SetActive", "comment": "Sets active/focus state; called with (g_AudioManager+0x10, 0) on WM_ACTIVATE deactivation" }
   ]
 }
