@@ -17,6 +17,8 @@ git submodule update --init --recursive
 To build the project, run the following command:
 ```bat
 xmake build
+
+xmake project -k compile_commands
 ```
 
 > ***Note:*** *This will generate a `build/windows/` directory in the **project's root directory** with the build output.*
