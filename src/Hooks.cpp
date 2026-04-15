@@ -21,11 +21,13 @@ bool Hooks::Install()
 
 bool Hooks::SwapChainWrapperHook::install()
 {
-	auto& trampoline = REL::GetTrampoline();
+	auto &trampoline = REL::GetTrampoline();
 
-	REL::Relocation<std::uintptr_t> callsite{ REL::ID(141996), 0x130 };
+	// 0x145F375B8
+	REL::Relocation<std::uintptr_t> callsite{REL::ID(141996), 0x130};
 	originalFunction = trampoline.write_call<5>(callsite.address(), thunk);
-	if (!originalFunction) {
+	if (!originalFunction)
+	{
 		REX::ERROR(
 			"SwapChainWrapperHook: failed to install hook at {:#x}",
 			callsite.address());
@@ -34,16 +36,16 @@ bool Hooks::SwapChainWrapperHook::install()
 
 	REX::INFO(
 		"SwapChainWrapperHook: installed callsite hook at {:#x}",
-		callsite.address()
-	);
+		callsite.address());
 	return true;
 }
 
-std::int64_t Hooks::SwapChainWrapperHook::thunk(void* a_context,
-				void* a_descOrState,
-				void* a_swapChainState)
+std::int64_t Hooks::SwapChainWrapperHook::thunk(void *a_context,
+												void *a_descOrState,
+												void *a_swapChainState)
 {
-	if (!originalFunction) {
+	if (!originalFunction)
+	{
 		REX::ERROR("SwapChainWrapperHook: original function pointer is null");
 		return 0;
 	}
@@ -52,14 +54,14 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void* a_context,
 
 	struct BootstrapState
 	{
-		void* swapChainWrapper;
+		void *swapChainWrapper;
 	};
 
 	struct GameSwapChainWrapper
 	{
 		// Validated from sub_142A34A90: the native DXGI swapchain lives at +0x40.
 		std::byte pad0[0x40];
-		IDXGISwapChain* dxgiSwapChain;
+		IDXGISwapChain *dxgiSwapChain;
 	};
 
 	struct RendererRoot
@@ -67,61 +69,61 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void* a_context,
 		// Validated from the CreateSwapChainForHwnd setup path:
 		// root + 0x28 -> queueOwnerA -> +0x08 -> queueOwnerB -> +0x60 -> ID3D12CommandQueue*
 		std::byte pad0[0x28];
-		void* queueOwnerA;
+		void *queueOwnerA;
 	};
 
 	struct QueueOwnerA
 	{
 		std::byte pad0[0x08];
-		void* queueOwnerB;
+		void *queueOwnerB;
 	};
 
 	struct QueueOwnerB
 	{
 		std::byte pad0[0x60];
-		ID3D12CommandQueue* commandQueue;
+		ID3D12CommandQueue *commandQueue;
 	};
 
-	static std::atomic_bool loggedMissingData{ false };
+	static std::atomic_bool loggedMissingData{false};
 
-	if (Overlay::IsInitialized()) {
+	if (Overlay::IsInitialized())
+	{
 		return;
 	}
 
-	IDXGISwapChain* swapChain = nullptr;
-	ID3D12CommandQueue* commandQueue = nullptr;
+	IDXGISwapChain *swapChain = nullptr;
+	ID3D12CommandQueue *commandQueue = nullptr;
 
 	(void)a_context;
 	(void)a_descOrState;
 
-	const auto* state = static_cast<const BootstrapState*>(a_swapChainState);
-	const auto* wrapper = state ? static_cast<const GameSwapChainWrapper*>(state->swapChainWrapper) : nullptr;
+	const auto *state = static_cast<const BootstrapState *>(a_swapChainState);
+	const auto *wrapper = state ? static_cast<const GameSwapChainWrapper *>(state->swapChainWrapper) : nullptr;
 	swapChain = wrapper ? wrapper->dxgiSwapChain : nullptr;
 
-	REL::Relocation<std::uintptr_t> rendererRootAddr{ REL::ID(944397) };
-	const auto* rendererRoot = *reinterpret_cast<RendererRoot* const*>(rendererRootAddr.address());
-	const auto* queueOwnerA = rendererRoot ? static_cast<const QueueOwnerA*>(rendererRoot->queueOwnerA) : nullptr;
-	const auto* queueOwnerB = queueOwnerA ? static_cast<const QueueOwnerB*>(queueOwnerA->queueOwnerB) : nullptr;
+	REL::Relocation<std::uintptr_t> rendererRootAddr{REL::ID(944397)};
+	const auto *rendererRoot = *reinterpret_cast<RendererRoot *const *>(rendererRootAddr.address());
+	const auto *queueOwnerA = rendererRoot ? static_cast<const QueueOwnerA *>(rendererRoot->queueOwnerA) : nullptr;
+	const auto *queueOwnerB = queueOwnerA ? static_cast<const QueueOwnerB *>(queueOwnerA->queueOwnerB) : nullptr;
 	commandQueue = queueOwnerB ? queueOwnerB->commandQueue : nullptr;
 
-	if (swapChain && commandQueue) {
-		if (Overlay::InitializeFromSwapChain(swapChain, commandQueue)) {
+	if (swapChain && commandQueue)
+	{
+		if (Overlay::InitializeFromSwapChain(swapChain, commandQueue))
+		{
 			// InstallDXGIHooks(swapChain);
 		}
 		return;
 	}
 
-	if (!loggedMissingData.exchange(true, std::memory_order_relaxed)) {
+	if (!loggedMissingData.exchange(true, std::memory_order_relaxed))
+	{
 		REX::WARN(
 			"SwapChainWrapperHook: bootstrap is missing data swapChain={:#x} commandQueue={:#x}",
 			reinterpret_cast<std::uintptr_t>(swapChain),
 			reinterpret_cast<std::uintptr_t>(commandQueue));
 	}
 
-
-
-
-				// TryBootstrapImGui(a_context, a_descOrState, a_swapChainState);
 	return result;
 }
 
@@ -197,74 +199,4 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void* a_context,
 // 			return true;
 // 		}
 
-// 		void TryBootstrapImGui(void* a_context, void* a_descOrState, void* a_swapChainState)
-// 		{
-// 			struct BootstrapState
-// 			{
-// 				void* swapChainWrapper;
-// 			};
-
-// 			struct GameSwapChainWrapper
-// 			{
-// 				// Validated from sub_142A34A90: the native DXGI swapchain lives at +0x40.
-// 				std::byte pad0[0x40];
-// 				IDXGISwapChain* dxgiSwapChain;
-// 			};
-
-// 			struct RendererRoot
-// 			{
-// 				// Validated from the CreateSwapChainForHwnd setup path:
-// 				// root + 0x28 -> queueOwnerA -> +0x08 -> queueOwnerB -> +0x60 -> ID3D12CommandQueue*
-// 				std::byte pad0[0x28];
-// 				void* queueOwnerA;
-// 			};
-
-// 			struct QueueOwnerA
-// 			{
-// 				std::byte pad0[0x08];
-// 				void* queueOwnerB;
-// 			};
-
-// 			struct QueueOwnerB
-// 			{
-// 				std::byte pad0[0x60];
-// 				ID3D12CommandQueue* commandQueue;
-// 			};
-
-// 			static std::atomic_bool loggedMissingData{ false };
-
-// 			if (Overlay::IsInitialized()) {
-// 				return;
-// 			}
-
-// 			IDXGISwapChain* swapChain = nullptr;
-// 			ID3D12CommandQueue* commandQueue = nullptr;
-
-// 			(void)a_context;
-// 			(void)a_descOrState;
-
-// 			const auto* state = static_cast<const BootstrapState*>(a_swapChainState);
-// 			const auto* wrapper = state ? static_cast<const GameSwapChainWrapper*>(state->swapChainWrapper) : nullptr;
-// 			swapChain = wrapper ? wrapper->dxgiSwapChain : nullptr;
-
-// 			REL::Relocation<std::uintptr_t> rendererRootAddr{ REL::ID(944397) };
-// 			const auto* rendererRoot = *reinterpret_cast<RendererRoot* const*>(rendererRootAddr.address());
-// 			const auto* queueOwnerA = rendererRoot ? static_cast<const QueueOwnerA*>(rendererRoot->queueOwnerA) : nullptr;
-// 			const auto* queueOwnerB = queueOwnerA ? static_cast<const QueueOwnerB*>(queueOwnerA->queueOwnerB) : nullptr;
-// 			commandQueue = queueOwnerB ? queueOwnerB->commandQueue : nullptr;
-
-// 			if (swapChain && commandQueue) {
-// 				if (Overlay::InitializeFromSwapChain(swapChain, commandQueue)) {
-// 					InstallDXGIHooks(swapChain);
-// 				}
-// 				return;
-// 			}
-
-// 			if (!loggedMissingData.exchange(true, std::memory_order_relaxed)) {
-// 				REX::WARN(
-// 					"SwapChainWrapperHook: bootstrap is missing data swapChain={:#x} commandQueue={:#x}",
-// 					reinterpret_cast<std::uintptr_t>(swapChain),
-// 					reinterpret_cast<std::uintptr_t>(commandQueue));
-// 			}
-// 		}
 // }
