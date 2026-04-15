@@ -17,7 +17,11 @@
 
 bool Hooks::Install()
 {
-	return SwapChainWrapperHook::install();
+	if (!SwapChainWrapperHook::install())
+		return false;
+	if (!UIRenderDispatchHook::install())
+		return false;
+	return true;
 }
 
 bool Hooks::SwapChainWrapperHook::install()
@@ -89,6 +93,34 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void *a_context,
 	}
 
 	return result;
+}
+
+bool Hooks::UIRenderDispatchHook::install()
+{
+	REL::Relocation<std::uintptr_t> target{REL::ID(73055)};
+	originalFunction = REL::GetTrampoline().write_jmp<5>(target.address(), thunk);
+	if (!originalFunction)
+	{
+		REX::ERROR(
+			"UIRenderDispatchHook: failed to install hook at {:#x}",
+			target.address());
+		return false;
+	}
+
+	REX::INFO(
+		"UIRenderDispatchHook: installed at {:#x}",
+		target.address());
+	return true;
+}
+
+void Hooks::UIRenderDispatchHook::thunk(std::uintptr_t a_uiManager, std::int64_t a_param2)
+{
+	originalFunction(a_uiManager, a_param2);
+
+	if (Overlay::IsInitialized())
+	{
+		Overlay::RenderFrame();
+	}
 }
 
 // namespace Hooks

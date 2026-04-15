@@ -294,7 +294,8 @@
     { "address": "0x142ccbfb0", "name": "GetAppRunnerSingleton", "confidence": "medium", "comment": "Returns app runner object; vtable[1] at end of init enters blocking loop" },
     { "address": "0x142ccd170", "name": "GetMessagePumpSingleton", "confidence": "medium", "comment": "Returns message pump object; vtable[1] call enters blocking frame loop" },
     { "address": "0x141882f30", "name": "EngineEvent_Dispatch", "confidence": "high", "comment": "Engine event dispatcher. param_1=event ID (0-14): 0=movie check, 4=input flush, 7=Scaleform notify(0), 8=frame advance + Scaleform notify(2), 0xb=engine state reset, 0xe=Scaleform notify(7). NOT per-frame render." },
-    { "address": "0x141883310", "name": "FrameRender_Callback", "confidence": "medium", "comment": "Registered on app runner at +0x08. Likely per-frame render — still needs analysis." },
+    { "address": "0x141883310", "name": "ScaleformFrameGate_Callback", "confidence": "high", "comment": "Scaleform frame begin/end gating. param_1: 0/1=begin (notify type 0, set flag), 2=end (notify type 2, clear flag). NOT D3D12 Present." },
+    { "address": "0x145e75497", "name": "g_bScaleformFrameInProgress", "confidence": "high", "comment": "Toggled by ScaleformFrameGate_Callback: set on begin (0/1), cleared on end (2)" },
     { "address": "0x1425464e0", "name": "ScaleformIsMovieLoaded", "confidence": "high", "comment": "Checks if a Scaleform movie (by path) is loaded in the renderer. Returns char bool." },
     { "address": "0x14253f5c0", "name": "GetMainMoviePath", "confidence": "medium", "comment": "Returns the primary Scaleform movie path string. Checked frequently in EngineEvent_Dispatch." },
     { "address": "0x14253eaa0", "name": "GetScaleformNotifyTarget", "confidence": "medium", "comment": "Returns a value passed to ScaleformNotifyMovie in event dispatch cases 7 and 8." },
@@ -315,6 +316,20 @@
     { "address": "0x1418a4c20", "name": "InitRenderPipeline_B", "confidence": "low" },
     { "address": "0x1418a4d00", "name": "InitRenderPipeline_C", "confidence": "low" },
     { "address": "0x140331e90", "name": "EngineState_StartLoop", "confidence": "medium", "comment": "Called with g_EngineState near end of init" },
-    { "address": "0x1418a50a0", "name": "GPUMemoryManager_PostInit", "confidence": "medium" }
+    { "address": "0x1418a50a0", "name": "GPUMemoryManager_PostInit", "confidence": "medium" },
+
+    { "address": "0x140eef960", "name": "UIRenderDispatch", "confidence": "high", "comment": "Per-frame UI render loop. Iterates menu array (+0x50/+0x58), removes dead elements, submits render commands (FUN_140ef33c0) for active menus with render flag (+0x114 bit0+bit15). Calls ScaleformManager_UpdateMenus when param_2==0." },
+    { "address": "0x140ef33c0", "name": "RenderCmd_UIElement_Execute", "confidence": "high", "comment": "Render command callback for per-menu Scaleform rendering. Submitted by UIRenderDispatch via render command system. Executes on render thread." },
+    { "address": "0x1428d9840", "name": "AllocRenderCommand_Typed", "confidence": "high", "comment": "Allocates a typed render command with size and alignment params. Used by UIRenderDispatch for UI render commands." },
+    { "address": "0x140eefee0", "name": "UIRenderDispatch_ProcessSecondary", "confidence": "medium", "comment": "Processes secondary UI element array during UIRenderDispatch." },
+    { "address": "0x140eee6f0", "name": "UIRenderDispatch_OnElementRemoved", "confidence": "medium", "comment": "Called when a destroyed UI element is removed from the array." },
+    { "address": "0x140ef0290", "name": "UIRenderDispatch_PostPass", "confidence": "medium", "comment": "Post-pass processing after menu iteration in UIRenderDispatch." },
+    { "address": "0x140ef27c0", "name": "UIRenderDispatch_RebuildSortArrays", "confidence": "medium", "comment": "Rebuilds the sort arrays (+0x80, +0x90) when menu elements changed." },
+    { "address": "0x1405877c0", "name": "GetRenderContextForUI", "confidence": "medium", "comment": "Returns render context data (5 qwords) used for UI render command submission." },
+
+    { "address": "0x141a22dd0", "name": "Main_FrameUpdate", "confidence": "high", "comment": "THE main per-frame update function. ~2000 lines. Orchestrates camera, scene, input, UI rendering (calls UIRenderDispatch twice), state transitions. Called each frame from the game loop." },
+    { "address": "0x1461e7518", "name": "g_UIManagerInstance", "confidence": "high", "comment": "UI manager object passed to UIRenderDispatch. +0x50=menu count, +0x58=menu array ptr." },
+    { "address": "0x141a74ec0", "name": "GPUFrameSync", "confidence": "medium", "comment": "GPU frame synchronization; called with g_GPUMemoryManager+0x40 near end of Main_FrameUpdate." },
+    { "address": "0x142427b40", "name": "UIRenderer_SubmitFrame", "confidence": "medium", "comment": "Submits UI renderer frame. Called with g_UIRenderer and a frame param after GPU sync." }
   ]
 }
