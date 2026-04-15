@@ -1,5 +1,7 @@
 #pragma once
 
+struct IDXGISwapChain;
+
 namespace Hooks
 {
 	bool Install();
@@ -12,9 +14,8 @@ namespace Hooks
 		static inline REL::Relocation<decltype(thunk)> originalFunction;
 	};
 
-	struct UIRenderDispatchHook {
-		static void thunk(std::uintptr_t a_uiManager, std::int64_t a_param2);
-		static bool install();
-		static inline REL::Relocation<decltype(thunk)> originalFunction;
-	};
+	namespace DXGIHooks
+	{
+		bool Install(IDXGISwapChain *a_swapChain);
+	}
 }
