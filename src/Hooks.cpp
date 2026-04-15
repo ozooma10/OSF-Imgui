@@ -11,6 +11,7 @@
 #endif
 
 #include "Overlay.h"
+#include "RE/BSGraphics.h"
 #include "REL/Relocation.h"
 #include "SFSE/API.h"
 
@@ -54,34 +55,7 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void *a_context,
 
 	struct BootstrapState
 	{
-		void *swapChainWrapper;
-	};
-
-	struct GameSwapChainWrapper
-	{
-		// Validated from sub_142A34A90: the native DXGI swapchain lives at +0x40.
-		std::byte pad0[0x40];
-		IDXGISwapChain *dxgiSwapChain;
-	};
-
-	struct RendererRoot
-	{
-		// Validated from the CreateSwapChainForHwnd setup path:
-		// root + 0x28 -> queueOwnerA -> +0x08 -> queueOwnerB -> +0x60 -> ID3D12CommandQueue*
-		std::byte pad0[0x28];
-		void *queueOwnerA;
-	};
-
-	struct QueueOwnerA
-	{
-		std::byte pad0[0x08];
-		void *queueOwnerB;
-	};
-
-	struct QueueOwnerB
-	{
-		std::byte pad0[0x60];
-		ID3D12CommandQueue *commandQueue;
+		RE::BSGraphics::GameSwapChainWrapper *swapChainWrapper;
 	};
 
 	static std::atomic_bool loggedMissingData{false};
@@ -91,21 +65,12 @@ std::int64_t Hooks::SwapChainWrapperHook::thunk(void *a_context,
 		return 0;
 	}
 
-	IDXGISwapChain *swapChain = nullptr;
-	ID3D12CommandQueue *commandQueue = nullptr;
-
-	(void)a_context;
-	(void)a_descOrState;
-
 	const auto *state = static_cast<const BootstrapState *>(a_swapChainState);
-	const auto *wrapper = state ? static_cast<const GameSwapChainWrapper *>(state->swapChainWrapper) : nullptr;
-	swapChain = wrapper ? wrapper->dxgiSwapChain : nullptr;
+	const auto *wrapper = state ? state->swapChainWrapper : nullptr;
+	IDXGISwapChain *swapChain = wrapper ? wrapper->pDxSwapChain : nullptr;
 
-	REL::Relocation<std::uintptr_t> rendererRootAddr{REL::ID(944397)};
-	const auto *rendererRoot = *reinterpret_cast<RendererRoot *const *>(rendererRootAddr.address());
-	const auto *queueOwnerA = rendererRoot ? static_cast<const QueueOwnerA *>(rendererRoot->queueOwnerA) : nullptr;
-	const auto *queueOwnerB = queueOwnerA ? static_cast<const QueueOwnerB *>(queueOwnerA->queueOwnerB) : nullptr;
-	commandQueue = queueOwnerB ? queueOwnerB->commandQueue : nullptr;
+	const auto *rendererRoot = RE::BSGraphics::RendererRoot::GetSingleton();
+	ID3D12CommandQueue *commandQueue = rendererRoot ? rendererRoot->GetCommandQueue() : nullptr;
 
 	if (swapChain && commandQueue)
 	{

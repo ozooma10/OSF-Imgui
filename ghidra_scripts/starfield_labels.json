@@ -180,7 +180,9 @@
     { "address": "0x14597b6c1", "name": "g_bCursorShown", "comment": "Tracks ShowCursor state; toggled by MainWndProc WM_SETCURSOR handler" },
     { "address": "0x1461f6850", "name": "g_CharInputDispatcher", "comment": "Character input dispatch; +0xb50=input slot array (0x30 each, max 15), +0x1288=lock, +0x1290/+0x1298=linked list head/tail" },
     { "address": "0x145f4b378", "name": "g_bSuppressActivation", "comment": "When nonzero, blocks InputManager_HandleActivation on WM_ACTIVATE" },
-    { "address": "0x145f67820", "name": "g_bBlockSysCommands", "comment": "When set, blocks SC_SCREENSAVE and SC_MONITORPOWER regardless of app state" }
+    { "address": "0x145f67820", "name": "g_bBlockSysCommands", "comment": "When set, blocks SC_SCREENSAVE and SC_MONITORPOWER regardless of app state" },
+    { "address": "0x1461e7540", "name": "g_DebugLogger", "comment": "Logger instance passed to DebugLogPrintf for condition/debug output" },
+    { "address": "0x145fe4b68", "name": "g_GameTimeContext", "comment": "+0x30 -> object where +0x48 is a time value; used in menu timer expiry (multiplied by 24.0)" }
   ],
   "functions": [
     { "address": "0x14083d990", "name": "ApplyUpscalingSettingsChange", "comment": "Handles upscaling/VRS/FSR2 setting changes and submits render commands" },
@@ -204,7 +206,9 @@
     { "address": "0x14188aab0", "name": "Renderer_GetState_B" },
     { "address": "0x14188dea0", "name": "Renderer_GetState_C" },
     { "address": "0x14189d450", "name": "Engine_Shutdown", "comment": "Full engine shutdown sequence. Tears down all subsystem singletons, flushes render commands, cleans up D3D resources. Contains string 'SHUTDOWN CLEAN'." },
-    { "address": "0x14189fbf0", "name": "Renderer_PostRender" },
+    { "address": "0x14189fbf0", "name": "PostLoop_Cleanup", "comment": "Called ONCE after main game loop exits, before Engine_Shutdown. NOT per-frame." },
+    { "address": "0x141883ca0", "name": "GameMain", "comment": "Top-level entry: SetPriorityClass, CoInitialize, runs MainGameLoop, then PostLoop_Cleanup + Engine_Shutdown" },
+    { "address": "0x14189af40", "name": "Engine_InitAndRun", "comment": "NOT a frame loop. Massive linear init of all subsystems, registers frame callbacks on engine singleton, then enters blocking message pump via virtual call at end. Returns when game should exit." },
 
     { "address": "0x14299E6C0", "name": "Renderer_InitSwapChainWrapper", "comment": "Contains the call site hooked by SwapChainWrapperHook at +0x130" },
     { "address": "0x142A34A90", "name": "Renderer_CreateSwapChainForHwnd", "comment": "Calls IDXGIFactory2::CreateSwapChainForHwnd, MakeWindowAssociation, and QI to IDXGISwapChain3/4. Allocates 0xD8-byte GameSwapChainWrapper." },
@@ -253,6 +257,53 @@
     { "address": "0x14249a4f0", "name": "WindowRect_SetPosition", "comment": "Sets position on a rect object; called with (g_AudioManager+0x10, x, y) from WM_WINDOWPOSCHANGED" },
     { "address": "0x14249a6a0", "name": "WindowRect_SetClientSize", "comment": "Sets client size on a rect object; called with (g_AudioManager+0x10, w, h) after AdjustWindowRectEx" },
     { "address": "0x14249acb0", "name": "WindowRect_OnDisplayChange", "comment": "Updates rect object on WM_DISPLAYCHANGE; called with g_AudioManager+0x10" },
-    { "address": "0x142499f30", "name": "WindowRect_SetActive", "comment": "Sets active/focus state; called with (g_AudioManager+0x10, 0) on WM_ACTIVATE deactivation" }
+    { "address": "0x142499f30", "name": "WindowRect_SetActive", "comment": "Sets active/focus state; called with (g_AudioManager+0x10, 0) on WM_ACTIVATE deactivation" },
+
+    { "address": "0x140c05cd0", "name": "ConditionFunc_IsInWorkshopMode", "comment": "Condition callback; loads workshop Scaleform movie, returns 1.0f if loaded, 0.0f if not" },
+    { "address": "0x142540040", "name": "GetScaleformMoviePath", "comment": "Returns a movie name/path string for ScaleformLoadMovie; called from condition funcs" },
+    { "address": "0x141ead410", "name": "DebugLogPrintf", "comment": "Printf-style debug/console logger; first arg is logger instance" },
+
+    { "address": "0x140d0de00", "name": "ScaleformManager_UpdateMenus", "comment": "Two-pass menu array update + 60fps frame timing. param_1+0x2f0=menu count, +0x2f8=menu ptr array. Each menu: +0x50 bit0=active, +0xb8 bit7=needs movie check" },
+    { "address": "0x140cb6420", "name": "Menu_UpdatePassA", "comment": "First-pass update for a Scaleform menu element" },
+    { "address": "0x140cb6980", "name": "Menu_UpdatePassB", "comment": "Second-pass update for a Scaleform menu element" },
+    { "address": "0x14253ea20", "name": "GetMenuMoviePath_Primary", "comment": "Returns primary movie path for Scaleform menu load check" },
+    { "address": "0x14253f840", "name": "GetMenuMoviePath_Fallback", "comment": "Returns fallback movie path when primary movie fails to load" },
+    { "address": "0x14179fcc0", "name": "GetElapsedTimeSeconds", "comment": "Returns elapsed time as float seconds; used for 60fps frame gating in menu update" },
+    { "address": "0x140cf2e60", "name": "Menu_SubmitFrameUpdate", "comment": "Submits per-frame menu update; args: type=5, menu obj, frame number" },
+    { "address": "0x140d1d770", "name": "Menu_OnTimerExpired", "comment": "Called when menu timer allocation is freed (bVar6=true path)" },
+    { "address": "0x140323990", "name": "AtomicCounter_Acquire", "comment": "Acquires/increments an atomic counter; paired with atomic decrement + WakeByAddressSingle" },
+
+    { "address": "0x142ccb790", "name": "GetEngineSingleton", "comment": "Returns the main engine/application singleton. Frame callbacks registered at +0x98, etc." },
+    { "address": "0x142ccbfb0", "name": "GetAppRunnerSingleton", "comment": "Returns app runner object. Callback at +0x08, +0xC0 used. vtable[1] at end of init enters blocking loop." },
+    { "address": "0x142ccd170", "name": "GetMessagePumpSingleton", "comment": "Returns message pump object. vtable[1] call enters the blocking frame/message loop." },
+    { "address": "0x141882f30", "name": "FrameTick_Callback", "comment": "Registered on engine singleton at +0x98. Likely the per-frame update/tick callback. KEY TARGET for render hook." },
+    { "address": "0x141883310", "name": "FrameRender_Callback", "comment": "Registered on app runner at +0x08. Likely per-frame render callback." },
+    { "address": "0x14189cfb0", "name": "FrameUpdate_Registered", "comment": "Registered via FUN_1424b95a0 as a callback during init." },
+    { "address": "0x14189ada0", "name": "PreLoop_Callback", "comment": "Registered as a pre-loop callback via the event dispatch system during early init." },
+    { "address": "0x141881d00", "name": "CreateWindowAndInput", "comment": "Creates the game window; return value passed to FUN_141883e40 to create g_InputManager." },
+    { "address": "0x141883e40", "name": "InputManager_Create", "comment": "Creates the input manager from window handle; result stored in g_InputManager." },
+    { "address": "0x142426cf0", "name": "UIRenderer_Create", "comment": "Creates the UI renderer object (0x580 bytes, 0x80 aligned); stored in g_UIRenderer." },
+    { "address": "0x142401c50", "name": "GetRenderContext", "comment": "Returns a render context object; +0x2c0 used for render target setup, +0x8b0 stores render target ptr." },
+    { "address": "0x1418a15c0", "name": "GetRenderScheduler", "comment": "Returns the render task scheduler. Called many times during init for registering render subsystems." },
+    { "address": "0x1418a1440", "name": "RenderScheduler_Init", "comment": "Initializes the render task scheduler." },
+    { "address": "0x142adadb0", "name": "CheckMinimumGPURequirements", "comment": "Returns 0 if GPU doesn't meet minimum specs; triggers 'Graphics card does not meet...' MessageBox." },
+    { "address": "0x1424b2d50", "name": "GetFrameSyncManager", "comment": "Returns frame synchronization manager." },
+    { "address": "0x141896340", "name": "InitInputSystem", "comment": "Initializes the input system during Engine_InitAndRun." },
+    { "address": "0x1418963a0", "name": "PostInitInputSystem", "comment": "Post-initialization for input system; returns value used by subsequent render init." },
+    { "address": "0x1418a4bf0", "name": "InitRenderPipeline_A", "comment": "Render pipeline init phase A during Engine_InitAndRun." },
+    { "address": "0x1418a4c20", "name": "InitRenderPipeline_B", "comment": "Render pipeline init phase B during Engine_InitAndRun." },
+    { "address": "0x1418a4d00", "name": "InitRenderPipeline_C", "comment": "Render pipeline init phase C during Engine_InitAndRun." },
+    { "address": "0x140331e90", "name": "EngineState_StartLoop", "comment": "Called with g_EngineState near end of init; may signal the engine to start the frame loop." },
+    { "address": "0x1418a50a0", "name": "GPUMemoryManager_PostInit", "comment": "Post-init for GPU memory manager; called with g_GPUMemoryManager+0x140 if DAT_145f4b3d0 set." },
+
+    { "address": "0x145e794c8", "name": "g_MainThreadId", "comment": "Stores GetCurrentThreadId() at start of Engine_InitAndRun" },
+    { "address": "0x145fbd378", "name": "g_GameMainParam1", "comment": "First param stored from GameMain" },
+    { "address": "0x145fbd380", "name": "g_GameMainParam3", "comment": "Third param stored from GameMain" },
+    { "address": "0x1461e74d0", "name": "g_RenderThreadManager", "comment": "Render thread management singleton; initialized during Engine_InitAndRun" },
+    { "address": "0x146202068", "name": "g_NameComponentManager", "comment": "Name component manager for entities; initialized during Engine_InitAndRun" },
+    { "address": "0x1461e70b0", "name": "g_RenderObjectPool", "comment": "Render object pool singleton; initialized during Engine_InitAndRun" },
+    { "address": "0x145e7d66f", "name": "g_bEngineInitComplete", "comment": "Set to 1 after core engine init, before subsystem startup in Engine_InitAndRun" },
+    { "address": "0x145fdbac0", "name": "g_VolumetricLightingCallback", "comment": "Callback for volumetric lighting system" },
+    { "address": "0x145eb04bc", "name": "g_bRenderSettingsInitialized", "comment": "Guards one-time init of render settings buffer (0x590 + 0x148 bytes)" }
   ]
 }
