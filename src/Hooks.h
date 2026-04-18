@@ -30,6 +30,16 @@ namespace Hooks
 		static inline REL::Relocation<decltype(thunk)> originalFunction;
 	};
 
+	struct RawInputQueueHook
+	{
+		static std::uintptr_t thunk(void *a_context,
+									void *a_rawInputHandle,
+									void *a_state,
+									void *a_rawInputHandleMirror);
+		static bool install();
+		static inline REL::Relocation<decltype(thunk)> originalFunction;
+	};
+
 	namespace DXGIHooks
 	{
 		bool Install(IDXGISwapChain *a_swapChain);
