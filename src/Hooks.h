@@ -25,7 +25,9 @@ namespace Hooks
 
 	struct FramePresentHook
 	{
+		static void thunk(void *a_presentBatch);
 		static bool install();
+		static inline REL::Relocation<decltype(thunk)> originalFunction;
 	};
 
 	namespace DXGIHooks
