@@ -2,11 +2,57 @@
   "version": "0.2.0",
   "configurations": [
     {
+      "name": "Starfield: launch via MO2 and attach",
+      "type": "cppvsdbg",
+      "request": "attach",
+      "processId": "${input:launchStarfieldAndReturnPid}",
+      "symbolSearchPath": "${workspaceFolder}\\build\\windows\\x64\\releasedbg;${workspaceFolder}\\build\\windows\\x64\\debug;C:\\Modding\\Starfield\\MO2\\mods\\starfield-re-sandbox\\SFSE\\Plugins",
+      "justMyCode": false
+    },
+    {
       "name": "Attach to Starfield",
       "type": "cppvsdbg",
       "request": "attach",
       "symbolSearchPath": "C:\\Modding\\OSF-Menu-Framework\\build\\windows\\x64\\release",
       "justMyCode": false
+    }
+  ],
+  "inputs": [
+    {
+      "id": "launchStarfieldAndReturnPid",
+      "type": "command",
+      "command": "shellCommand.execute",
+      "args": {
+        "command": "pwsh",
+        "commandArgs": [
+          "-ExecutionPolicy",
+          "Bypass",
+          "-File",
+          "${workspaceFolder}\\tools\\dev\\Start-StarfieldDebug.ps1",
+          "-ForceRestart",
+          "-SkipAttach",
+          "-EmitPidOnly"
+        ],
+        "useFirstResult": true,
+        "filterEmptyResults": true,
+        "warnOnStderr": false
+      }
+    },
+    {
+      "id": "findRunningStarfieldPid",
+      "type": "command",
+      "command": "shellCommand.execute",
+      "args": {
+        "command": "pwsh",
+        "commandArgs": [
+          "-NoProfile",
+          "-Command",
+          "Get-Process -Name Starfield -ErrorAction Stop | Sort-Object StartTime -Descending | Select-Object -First 1 -ExpandProperty Id"
+        ],
+        "useFirstResult": true,
+        "filterEmptyResults": true,
+        "warnOnStderr": false
+      }
     }
   ]
 }
