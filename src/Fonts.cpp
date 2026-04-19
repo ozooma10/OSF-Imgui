@@ -37,18 +37,27 @@ namespace Fonts
 
 		ImFontConfig defaultCfg{};
 		defaultCfg.SizePixels = a_size;
-		g_default = a_io.Fonts->AddFontDefault(&defaultCfg);
 
 		ImFontConfig merge{};
 		merge.MergeMode = true;
 		merge.PixelSnapH = true;
+
+		// g_default: ASCII + all three FA variants merged.
+		g_default = a_io.Fonts->AddFontDefault(&defaultCfg);
 		LoadTTF(a_io, "fa-solid-900.ttf", a_size, &merge, iconRanges);
 		LoadTTF(a_io, "fa-regular-400.ttf", a_size, &merge, iconRanges);
 		LoadTTF(a_io, "fa-brands-400.ttf", a_size, &merge, iconRanges);
 
-		g_solid = LoadTTF(a_io, "fa-solid-900.ttf", a_size, nullptr, iconRanges);
-		g_regular = LoadTTF(a_io, "fa-regular-400.ttf", a_size, nullptr, iconRanges);
-		g_brands = LoadTTF(a_io, "fa-brands-400.ttf", a_size, nullptr, iconRanges);
+		// g_solid/g_regular/g_brands each include ASCII + their FA variant, so
+		// mixed text like "Hello ■ World" renders correctly when pushed.
+		g_solid = a_io.Fonts->AddFontDefault(&defaultCfg);
+		LoadTTF(a_io, "fa-solid-900.ttf", a_size, &merge, iconRanges);
+
+		g_regular = a_io.Fonts->AddFontDefault(&defaultCfg);
+		LoadTTF(a_io, "fa-regular-400.ttf", a_size, &merge, iconRanges);
+
+		g_brands = a_io.Fonts->AddFontDefault(&defaultCfg);
+		LoadTTF(a_io, "fa-brands-400.ttf", a_size, &merge, iconRanges);
 
 		return g_solid && g_regular && g_brands;
 	}
