@@ -19,12 +19,10 @@
 
 namespace
 {
-	constexpr std::uintptr_t kProcessRawInputCallSiteOffset = 0x01883A49;
 	constexpr std::uintptr_t kExpectedProcessRawInputTargetOffset = 0x022D9FC0;
 	constexpr std::array<std::uint8_t, 5> kExpectedProcessRawInputCallBytes{
 		0xE8, 0x72, 0x65, 0xA5, 0x00};
 
-	constexpr std::uintptr_t kUITranslatedInputGateOffset = 0x02543DA0;
 }
 
 bool Hooks::Install()
@@ -32,8 +30,7 @@ bool Hooks::Install()
 	const auto framePresentInstalled = FramePresentHook::install();
 	const auto swapChainInstalled = SwapChainWrapperHook::install();
 	const auto rawInputInstalled = RawInputQueueHook::install();
-	// const auto translatedGateInstalled = UITranslatedInputHook::install();
-	return framePresentInstalled && swapChainInstalled && rawInputInstalled; // && translatedGateInstalled;
+	return framePresentInstalled && swapChainInstalled && rawInputInstalled;
 }
 
 // ── Engine end-of-frame wrapper callsite hook ──────────────────
@@ -76,13 +73,17 @@ std::uintptr_t Hooks::RawInputQueueHook::thunk(void *a_context,
 											   void *a_rawInputHandleMirror)
 {
 	Overlay::HandleRawInput(a_rawInputHandle);
+	if (Overlay::WantsInputCapture())
+	{
+		return 0;
+	}
 	return originalFunction(a_context, a_rawInputHandle, a_state, a_rawInputHandleMirror);
 }
 
 bool Hooks::RawInputQueueHook::install()
 {
 	auto &trampoline = REL::GetTrampoline();
-	REL::Relocation<std::uintptr_t> callsite{REL::Offset(kProcessRawInputCallSiteOffset)};
+	REL::Relocation<std::uintptr_t> callsite{REL::ID(99374), 0x5F9};
 	const auto siteAddress = callsite.address();
 	const auto *siteBytes = reinterpret_cast<const std::uint8_t *>(siteAddress);
 	if (std::memcmp(siteBytes, kExpectedProcessRawInputCallBytes.data(), kExpectedProcessRawInputCallBytes.size()) != 0)
@@ -115,37 +116,6 @@ bool Hooks::RawInputQueueHook::install()
 		originalFunction.address(),
 		originalRva,
 		kExpectedProcessRawInputTargetOffset);
-	return true;
-}
-
-// ── UI translated-input gate hook (0x142543DA0) ──────────────
-
-void Hooks::UITranslatedInputHook::thunk(void *a_receiver, const RE::InputEvent *a_queueHead)
-{
-	if (Overlay::WantsInputCapture())
-	{
-		return;
-	}
-
-	originalFunction(a_receiver, a_queueHead);
-}
-
-bool Hooks::UITranslatedInputHook::install()
-{
-	auto &trampoline = REL::GetTrampoline();
-	REL::Relocation<std::uintptr_t> target{REL::Offset(kUITranslatedInputGateOffset)};
-	originalFunction = trampoline.write_jmp<5>(target.address(), thunk);
-	if (!originalFunction)
-	{
-		REX::ERROR(
-			"UITranslatedInputHook: failed to install function hook at {:#x}",
-			target.address());
-		return false;
-	}
-
-	REX::INFO(
-		"UITranslatedInputHook: installed suppression gate hook at {:#x}",
-		target.address());
 	return true;
 }
 

@@ -39,16 +39,3 @@ namespace Hooks
 		static bool install();
 		static inline REL::Relocation<decltype(thunk)> originalFunction;
 	};
-
-	struct UITranslatedInputHook
-	{
-		static void thunk(void *a_receiver, const RE::InputEvent *a_queueHead);
-		static bool install();
-		static inline REL::Relocation<decltype(thunk)> originalFunction;
-	};
-
-	namespace DXGIHooks
-	{
-		bool Install(IDXGISwapChain *a_swapChain);
-	}
-}

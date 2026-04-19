@@ -677,6 +677,8 @@ namespace Overlay
 		{
 			ImGuiIO &io = ImGui::GetIO();
 
+			io.MouseDrawCursor = WindowManager::IsAnyWindowOpen();
+
 			RECT clientRect{};
 			if (::GetClientRect(g_state.hwnd, &clientRect))
 			{
@@ -965,14 +967,12 @@ namespace Overlay
 
 	bool WantsInputCapture()
 	{
-		std::scoped_lock lock(g_state.mutex);
-		if (!g_state.initialized || !WindowManager::IsAnyWindowOpen() || ImGui::GetCurrentContext() == nullptr)
+		if (!g_state.initialized || ImGui::GetCurrentContext() == nullptr)
 		{
 			return false;
 		}
 
-		const ImGuiIO &io = ImGui::GetIO();
-		return io.WantCaptureKeyboard || io.WantCaptureMouse;
+		return WindowManager::IsAnyWindowOpen();
 	}
 
 	void RenderFrame()
