@@ -13,7 +13,6 @@
 #endif
 
 #include "Overlay.h"
-#include "UIManager.h"
 #include "RE/BSGraphics.h"
 #include "REL/Relocation.h"
 #include "SFSE/API.h"
@@ -23,65 +22,18 @@ namespace
 	constexpr std::uintptr_t kProcessRawInputCallSiteOffset = 0x01883A49;
 	constexpr std::uintptr_t kExpectedProcessRawInputTargetOffset = 0x022D9FC0;
 	constexpr std::array<std::uint8_t, 5> kExpectedProcessRawInputCallBytes{
-		0xE8, 0x72, 0x65, 0xA5, 0x00
-	};
+		0xE8, 0x72, 0x65, 0xA5, 0x00};
 
-	bool IsToggleRawInput(const RAWINPUT *a_rawInput)
-	{
-		return a_rawInput &&
-			   a_rawInput->header.dwType == RIM_TYPEKEYBOARD &&
-			   a_rawInput->data.keyboard.VKey == VK_F10;
-	}
-
-	void HandleToggleRawInput(void *a_rawInputHandle)
-	{
-		if (!a_rawInputHandle)
-		{
-			return;
-		}
-
-		UINT dataSize = 0;
-		const auto headerSize = static_cast<UINT>(sizeof(RAWINPUTHEADER));
-		if (::GetRawInputData(reinterpret_cast<HRAWINPUT>(a_rawInputHandle), RID_INPUT, nullptr, &dataSize, headerSize) == UINT_MAX ||
-			dataSize == 0 ||
-			dataSize > 256)
-		{
-			return;
-		}
-
-		std::array<std::byte, 256> storage{};
-		auto *rawInput = reinterpret_cast<RAWINPUT *>(storage.data());
-		if (::GetRawInputData(reinterpret_cast<HRAWINPUT>(a_rawInputHandle), RID_INPUT, rawInput, &dataSize, headerSize) == UINT_MAX)
-		{
-			return;
-		}
-
-		if (!IsToggleRawInput(rawInput))
-		{
-			return;
-		}
-
-		static std::atomic_bool toggleKeyDown{false};
-		const bool isBreak = (rawInput->data.keyboard.Flags & RI_KEY_BREAK) != 0;
-		if (isBreak)
-		{
-			toggleKeyDown.store(false, std::memory_order_relaxed);
-			return;
-		}
-
-		if (!toggleKeyDown.exchange(true, std::memory_order_relaxed))
-		{
-			UIManager::Toggle();
-		}
-	}
+	constexpr std::uintptr_t kUITranslatedInputGateOffset = 0x02543DA0;
 }
 
 bool Hooks::Install()
 {
 	const auto framePresentInstalled = FramePresentHook::install();
 	const auto swapChainInstalled = SwapChainWrapperHook::install();
-	const auto inputInstalled = RawInputQueueHook::install();
-	return framePresentInstalled && swapChainInstalled && inputInstalled;
+	const auto rawInputInstalled = RawInputQueueHook::install();
+	// const auto translatedGateInstalled = UITranslatedInputHook::install();
+	return framePresentInstalled && swapChainInstalled && rawInputInstalled; // && translatedGateInstalled;
 }
 
 // ── Engine end-of-frame wrapper callsite hook ──────────────────
@@ -116,14 +68,14 @@ bool Hooks::FramePresentHook::install()
 	return true;
 }
 
-// ── Raw input queue hook (menu toggle hotkey) ─────────────────
+// ── Raw input queue hook (primary ImGui input source) ─────────
 
 std::uintptr_t Hooks::RawInputQueueHook::thunk(void *a_context,
 											   void *a_rawInputHandle,
 											   void *a_state,
 											   void *a_rawInputHandleMirror)
 {
-	HandleToggleRawInput(a_rawInputHandle);
+	Overlay::HandleRawInput(a_rawInputHandle);
 	return originalFunction(a_context, a_rawInputHandle, a_state, a_rawInputHandleMirror);
 }
 
@@ -156,15 +108,44 @@ bool Hooks::RawInputQueueHook::install()
 	}
 
 	const auto moduleBase = reinterpret_cast<std::uintptr_t>(::GetModuleHandleA("Starfield.exe"));
-	const auto originalRva = moduleBase && originalFunction.address() >= moduleBase
-		? originalFunction.address() - moduleBase
-		: 0;
+	const auto originalRva = moduleBase && originalFunction.address() >= moduleBase ? originalFunction.address() - moduleBase : 0;
 	REX::INFO(
 		"RawInputQueueHook: installed direct call hook at {:#x}, original target {:#x} (RVA {:#x}, expected {:#x})",
 		siteAddress,
 		originalFunction.address(),
 		originalRva,
 		kExpectedProcessRawInputTargetOffset);
+	return true;
+}
+
+// ── UI translated-input gate hook (0x142543DA0) ──────────────
+
+void Hooks::UITranslatedInputHook::thunk(void *a_receiver, const RE::InputEvent *a_queueHead)
+{
+	if (Overlay::WantsInputCapture())
+	{
+		return;
+	}
+
+	originalFunction(a_receiver, a_queueHead);
+}
+
+bool Hooks::UITranslatedInputHook::install()
+{
+	auto &trampoline = REL::GetTrampoline();
+	REL::Relocation<std::uintptr_t> target{REL::Offset(kUITranslatedInputGateOffset)};
+	originalFunction = trampoline.write_jmp<5>(target.address(), thunk);
+	if (!originalFunction)
+	{
+		REX::ERROR(
+			"UITranslatedInputHook: failed to install function hook at {:#x}",
+			target.address());
+		return false;
+	}
+
+	REX::INFO(
+		"UITranslatedInputHook: installed suppression gate hook at {:#x}",
+		target.address());
 	return true;
 }
 

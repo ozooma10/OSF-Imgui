@@ -16,8 +16,6 @@ namespace UIManager
 	{
 		std::atomic_bool g_open{ false };
 
-		constexpr ImGuiKey kToggleKey = ImGuiKey_F10;
-
 		void ApplyPause(bool a_pause)
 		{
 			if (auto* main = RE::Main::GetSingleton()) {
@@ -54,10 +52,6 @@ namespace UIManager
 
 	void DrawFrame()
 	{
-		if (ImGui::IsKeyPressed(kToggleKey, false)) {
-			Toggle();
-		}
-
 		if (!IsOpen()) {
 			return;
 		}
