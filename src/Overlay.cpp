@@ -25,7 +25,10 @@
 #include "SFSE/InputMap.h"
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
+#include "imgui_impl_win32.h"
 #include "WindowManager.h"
+
+extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND, UINT, WPARAM, LPARAM);
 
 namespace Overlay
 {
@@ -142,11 +145,35 @@ namespace Overlay
 			INT64 lastFrameTicks{0};
 			bool hadFocus{false};
 			bool hadInputCapture{false};
-			POINT overlayCursorClient{};
-			bool overlayCursorValid{false};
+			WNDPROC originalWndProc{nullptr};
 		};
 
 		RuntimeState g_state;
+
+		[[nodiscard]] bool ShouldCaptureBlockingInput();
+
+		LRESULT CALLBACK OverlayWndProc(HWND a_hwnd, UINT a_message, WPARAM a_wParam, LPARAM a_lParam)
+		{
+			const auto hasContext = ImGui::GetCurrentContext() != nullptr;
+			const auto wantsBlockingCapture = hasContext && ShouldCaptureBlockingInput();
+
+			if (hasContext && a_message == WM_KILLFOCUS)
+			{
+				ImGui::GetIO().ClearInputKeys();
+			}
+
+			if (hasContext && ImGui_ImplWin32_WndProcHandler(a_hwnd, a_message, a_wParam, a_lParam) && wantsBlockingCapture)
+			{
+				return 1;
+			}
+
+			if (g_state.originalWndProc)
+			{
+				return ::CallWindowProcW(g_state.originalWndProc, a_hwnd, a_message, a_wParam, a_lParam);
+			}
+
+			return ::DefWindowProcW(a_hwnd, a_message, a_wParam, a_lParam);
+		}
 
 		[[nodiscard]] bool ShouldCaptureBlockingInput()
 		{
@@ -634,128 +661,12 @@ namespace Overlay
 			}
 		}
 
-		void UpdateMousePosition(ImGuiIO &a_io)
-		{
-			if (!g_state.hwnd)
-			{
-				a_io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
-				return;
-			}
-
-			POINT position{};
-			if (::GetCursorPos(&position) && ::ScreenToClient(g_state.hwnd, &position))
-			{
-				a_io.AddMousePosEvent(static_cast<float>(position.x), static_cast<float>(position.y));
-			}
-		}
-
-		bool TryGetClientRect(RECT &a_clientRect)
-		{
-			if (!g_state.hwnd)
-			{
-				return false;
-			}
-
-			if (!::GetClientRect(g_state.hwnd, &a_clientRect))
-			{
-				return false;
-			}
-
-			return a_clientRect.right > a_clientRect.left && a_clientRect.bottom > a_clientRect.top;
-		}
-
-		void ClampOverlayCursorToClient(POINT &a_position)
-		{
-			RECT clientRect{};
-			if (!TryGetClientRect(clientRect))
-			{
-				return;
-			}
-
-			a_position.x = std::clamp<LONG>(a_position.x, clientRect.left, clientRect.right - 1);
-			a_position.y = std::clamp<LONG>(a_position.y, clientRect.top, clientRect.bottom - 1);
-		}
-
-		void SeedOverlayCursorFromSystem()
-		{
-			POINT position{};
-			if (::GetCursorPos(&position) && ::ScreenToClient(g_state.hwnd, &position))
-			{
-				g_state.overlayCursorClient = position;
-			}
-			else
-			{
-				RECT clientRect{};
-				if (!TryGetClientRect(clientRect))
-				{
-					g_state.overlayCursorValid = false;
-					return;
-				}
-
-				g_state.overlayCursorClient = {
-					(clientRect.left + clientRect.right) / 2,
-					(clientRect.top + clientRect.bottom) / 2};
-			}
-
-			ClampOverlayCursorToClient(g_state.overlayCursorClient);
-			g_state.overlayCursorValid = true;
-		}
-
-		void UpdateOverlayCursorFromRawMouse(const RAWMOUSE &a_mouse)
-		{
-			if (!g_state.overlayCursorValid)
-			{
-				SeedOverlayCursorFromSystem();
-			}
-
-			if (!g_state.overlayCursorValid)
-			{
-				return;
-			}
-
-			if ((a_mouse.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)
-			{
-				SeedOverlayCursorFromSystem();
-				return;
-			}
-
-			g_state.overlayCursorClient.x += a_mouse.lLastX;
-			g_state.overlayCursorClient.y += a_mouse.lLastY;
-			ClampOverlayCursorToClient(g_state.overlayCursorClient);
-		}
-
-		void SubmitOverlayCursorPosition(ImGuiIO &a_io)
-		{
-			if (!g_state.overlayCursorValid)
-			{
-				SeedOverlayCursorFromSystem();
-			}
-
-			if (!g_state.overlayCursorValid)
-			{
-				a_io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
-				return;
-			}
-
-			a_io.AddMousePosEvent(
-				static_cast<float>(g_state.overlayCursorClient.x),
-				static_cast<float>(g_state.overlayCursorClient.y));
-		}
-
 		void UpdateInputCaptureState(bool a_wantsInputCapture)
 		{
 			if (a_wantsInputCapture)
 			{
 				::ClipCursor(nullptr);
 				::ReleaseCapture();
-				if (!g_state.hadInputCapture)
-				{
-					SeedOverlayCursorFromSystem();
-				}
-			}
-			else if (g_state.hadInputCapture)
-			{
-				g_state.overlayCursorValid = false;
 			}
 
 			g_state.hadInputCapture = a_wantsInputCapture;
@@ -769,24 +680,7 @@ namespace Overlay
 				return;
 			}
 
-			ImGuiIO &io = ImGui::GetIO();
 			const bool isKeyDown = (a_keyboard.Flags & RI_KEY_BREAK) == 0;
-			const auto lParam = MakeKeyLParam(a_keyboard);
-			const auto imguiKey = KeyEventToImGuiKey(virtualKey, lParam);
-			const int scanCode = static_cast<int>(a_keyboard.MakeCode);
-
-			UpdateKeyModifiers(io);
-
-			if (imguiKey == ImGuiKey_PrintScreen && !isKeyDown)
-			{
-				AddKeyEvent(io, imguiKey, true, static_cast<int>(virtualKey), scanCode);
-			}
-
-			if (imguiKey != ImGuiKey_None)
-			{
-				AddKeyEvent(io, imguiKey, isKeyDown, static_cast<int>(virtualKey), scanCode);
-			}
-
 			if (virtualKey == VK_F10)
 			{
 				static bool toggleKeyDown = false;
@@ -799,75 +693,6 @@ namespace Overlay
 					WindowManager::Toggle();
 					toggleKeyDown = true;
 				}
-			}
-
-			SubmitTextInput(io, a_keyboard, virtualKey, isKeyDown);
-		}
-
-		void HandleMouseRawInput(const RAWMOUSE &a_mouse)
-		{
-			ImGuiIO &io = ImGui::GetIO();
-			io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
-			if (ShouldCaptureBlockingInput())
-			{
-				UpdateOverlayCursorFromRawMouse(a_mouse);
-				SubmitOverlayCursorPosition(io);
-			}
-			else
-			{
-				UpdateMousePosition(io);
-			}
-
-			const auto buttonFlags = a_mouse.usButtonFlags;
-			if ((buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0)
-			{
-				io.AddMouseButtonEvent(0, true);
-			}
-			if ((buttonFlags & RI_MOUSE_LEFT_BUTTON_UP) != 0)
-			{
-				io.AddMouseButtonEvent(0, false);
-			}
-			if ((buttonFlags & RI_MOUSE_RIGHT_BUTTON_DOWN) != 0)
-			{
-				io.AddMouseButtonEvent(1, true);
-			}
-			if ((buttonFlags & RI_MOUSE_RIGHT_BUTTON_UP) != 0)
-			{
-				io.AddMouseButtonEvent(1, false);
-			}
-			if ((buttonFlags & RI_MOUSE_MIDDLE_BUTTON_DOWN) != 0)
-			{
-				io.AddMouseButtonEvent(2, true);
-			}
-			if ((buttonFlags & RI_MOUSE_MIDDLE_BUTTON_UP) != 0)
-			{
-				io.AddMouseButtonEvent(2, false);
-			}
-			if ((buttonFlags & RI_MOUSE_BUTTON_4_DOWN) != 0)
-			{
-				io.AddMouseButtonEvent(3, true);
-			}
-			if ((buttonFlags & RI_MOUSE_BUTTON_4_UP) != 0)
-			{
-				io.AddMouseButtonEvent(3, false);
-			}
-			if ((buttonFlags & RI_MOUSE_BUTTON_5_DOWN) != 0)
-			{
-				io.AddMouseButtonEvent(4, true);
-			}
-			if ((buttonFlags & RI_MOUSE_BUTTON_5_UP) != 0)
-			{
-				io.AddMouseButtonEvent(4, false);
-			}
-			if ((buttonFlags & RI_MOUSE_WHEEL) != 0)
-			{
-				const auto wheelDelta = static_cast<float>(static_cast<SHORT>(a_mouse.usButtonData)) / static_cast<float>(WHEEL_DELTA);
-				io.AddMouseWheelEvent(0.0f, wheelDelta);
-			}
-			if ((buttonFlags & RI_MOUSE_HWHEEL) != 0)
-			{
-				const auto wheelDelta = static_cast<float>(static_cast<SHORT>(a_mouse.usButtonData)) / static_cast<float>(WHEEL_DELTA);
-				io.AddMouseWheelEvent(-wheelDelta, 0.0f);
 			}
 		}
 
@@ -883,14 +708,6 @@ namespace Overlay
 				io.ClearInputKeys();
 			}
 			UpdateInputCaptureState(wantsInputCapture);
-
-			RECT clientRect{};
-			if (::GetClientRect(g_state.hwnd, &clientRect))
-			{
-				io.DisplaySize = ImVec2(
-					static_cast<float>(clientRect.right - clientRect.left),
-					static_cast<float>(clientRect.bottom - clientRect.top));
-			}
 
 			LARGE_INTEGER now{};
 			if (::QueryPerformanceCounter(&now) && g_state.ticksPerSecond > 0)
@@ -917,32 +734,6 @@ namespace Overlay
 				io.AddFocusEvent(hasFocus);
 				g_state.hadFocus = hasFocus;
 			}
-
-			if (hasFocus && wantsInputCapture)
-			{
-				SubmitOverlayCursorPosition(io);
-			}
-			else if (hasFocus)
-			{
-				if (io.WantSetMousePos)
-				{
-					POINT position{
-						static_cast<LONG>(io.MousePos.x),
-						static_cast<LONG>(io.MousePos.y)};
-					if (::ClientToScreen(g_state.hwnd, &position))
-					{
-						::SetCursorPos(position.x, position.y);
-					}
-				}
-
-				UpdateMousePosition(io);
-			}
-			else
-			{
-				io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
-			}
-
-			ProcessKeyEventsWorkarounds(io);
 		}
 
 		bool CreateRenderTargets()
@@ -1086,8 +877,8 @@ namespace Overlay
 		ImGui::StyleColorsDark();
 
 		ImGuiIO &io = ImGui::GetIO();
-		io.BackendPlatformName = "osf_raw_input";
 		io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+		io.ConfigFlags |= ImGuiConfigFlags_NoMouseCursorChange;
 		io.IniFilename = nullptr;
 
 		LARGE_INTEGER frequency{};
@@ -1102,6 +893,13 @@ namespace Overlay
 		ImGui::GetMainViewport()->PlatformHandleRaw = swapChainDesc.OutputWindow;
 
 		Fonts::Load(io);
+
+		if (!ImGui_ImplWin32_Init(swapChainDesc.OutputWindow))
+		{
+			REX::ERROR("Overlay: ImGui Win32 backend initialization failed");
+			ImGui::DestroyContext();
+			return false;
+		}
 
 		ImGui_ImplDX12_InitInfo initInfo{};
 		initInfo.Device = device.Get();
@@ -1128,6 +926,16 @@ namespace Overlay
 		g_state.framesInFlight = std::max<UINT>(swapChainDesc.BufferCount, 2);
 		g_state.rtvFormat = swapChainDesc.BufferDesc.Format;
 		g_state.hadFocus = ::GetForegroundWindow() == g_state.hwnd;
+		g_state.originalWndProc = reinterpret_cast<WNDPROC>(
+			::SetWindowLongPtrW(g_state.hwnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(OverlayWndProc)));
+		if (!g_state.originalWndProc)
+		{
+			REX::ERROR("Overlay: failed to install Win32 WndProc hook");
+			ImGui_ImplWin32_Shutdown();
+			ImGui_ImplDX12_Shutdown();
+			ImGui::DestroyContext();
+			return false;
+		}
 		g_state.initialized = true;
 
 		if (!CreateRenderTargets())
@@ -1212,10 +1020,6 @@ namespace Overlay
 		{
 			HandleKeyboardRawInput(rawInput.data.keyboard);
 		}
-		else if (rawInput.header.dwType == RIM_TYPEMOUSE)
-		{
-			HandleMouseRawInput(rawInput.data.mouse);
-		}
 	}
 
 	bool WantsInputCapture()
@@ -1287,6 +1091,7 @@ namespace Overlay
 
 		UpdateFrameInputState();
 		ImGui_ImplDX12_NewFrame();
+		ImGui_ImplWin32_NewFrame();
 		ImGui::NewFrame();
 
 		WindowManager::RenderWindows();
