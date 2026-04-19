@@ -941,6 +941,50 @@ namespace Overlay
 		return g_state.initialized;
 	}
 
+	bool TryGetTextureLoaderContext(ID3D12Device **a_outDevice, ID3D12CommandQueue **a_outCommandQueue)
+	{
+		if (!a_outDevice || !a_outCommandQueue)
+		{
+			return false;
+		}
+
+		std::scoped_lock lock(g_state.mutex);
+		if (!g_state.initialized || !g_state.device || !g_state.commandQueue)
+		{
+			return false;
+		}
+
+		*a_outDevice = g_state.device.Get();
+		*a_outCommandQueue = g_state.commandQueue.Get();
+		return true;
+	}
+
+	bool AllocateShaderVisibleSrv(
+		D3D12_CPU_DESCRIPTOR_HANDLE *a_outCpuHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE *a_outGpuHandle)
+	{
+		std::scoped_lock lock(g_state.mutex);
+		if (!g_state.initialized)
+		{
+			return false;
+		}
+
+		return g_state.srvAllocator.Allocate(a_outCpuHandle, a_outGpuHandle);
+	}
+
+	void FreeShaderVisibleSrv(
+		D3D12_CPU_DESCRIPTOR_HANDLE a_cpuHandle,
+		D3D12_GPU_DESCRIPTOR_HANDLE a_gpuHandle)
+	{
+		std::scoped_lock lock(g_state.mutex);
+		if (!g_state.initialized)
+		{
+			return;
+		}
+
+		g_state.srvAllocator.Free(a_cpuHandle, a_gpuHandle);
+	}
+
 	void HandleRawInput(void *a_rawInputHandle)
 	{
 		RAWINPUT rawInput{};

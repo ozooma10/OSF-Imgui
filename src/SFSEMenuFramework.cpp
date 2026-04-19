@@ -3,6 +3,7 @@
 #include "Application.h"
 #include "Fonts.h"
 #include "UI.h"
+#include "TextureLoader.h"
 
 void AddSectionItem(const char *path, RenderFunction rendererFunction)
 {
@@ -61,3 +62,21 @@ int64_t RegisterHudElement(HudElementCallback callback) { return HudManager::Reg
 void UnregisterHudElement(uint64_t id) { HudManager::Unregister(id); }
 
 bool IsAnyBlockingWindowOpened() { return WindowManager::ShouldTheGameBePaused(); }
+
+ImTextureID LoadTexture(const char* texturePath, ImVec2* size)
+{
+    if (!texturePath) {
+        return ImTextureID_Invalid;
+    }
+
+    return TextureLoader::GetTexture(texturePath, size ? *size : ImVec2{ 0.0f, 0.0f });
+}
+
+void DisposeTexture(const char* texturePath)
+{
+    if (!texturePath) {
+        return;
+    }
+
+    TextureLoader::DisposeTexture(texturePath);
+}

@@ -2,6 +2,7 @@
 
 #include <cassert>
 #include <codecvt>
+#include <filesystem>
 #include <locale>
 #include <string>
 
@@ -51,6 +52,8 @@ namespace SFSEMenuFramework
         using ActionFunction = void (*)();
         using AddWindowFunction = Model::WindowInterface *(*)(RenderFunction);
         using AddSectionItemFunction = void (*)(const char *path, RenderFunction rendererFunction);
+        using LoadTextureFunction = ImTextureID (*)(const char *texturePath, ImVec2 *size);
+        using DisposeTextureFunction = void (*)(const char *texturePath);
     }
 
     inline void AddSectionItem(std::string menu, Model::RenderFunction rendererFunction)
@@ -71,6 +74,25 @@ namespace SFSEMenuFramework
             return result;
         }
         return nullptr;
+    }
+
+    inline ImTextureID LoadTexture(std::string texturePath, ImVec2 size = { 0.0f, 0.0f })
+    {
+        static auto func = Model::Internal::GetFunction<Model::LoadTextureFunction>("LoadTexture");
+        if (func)
+        {
+            return func(texturePath.c_str(), &size);
+        }
+        return 0;
+    }
+
+    inline void DisposeTexture(std::string texturePath)
+    {
+        static auto func = Model::Internal::GetFunction<Model::DisposeTextureFunction>("DisposeTexture");
+        if (func)
+        {
+            func(texturePath.c_str());
+        }
     }
 
     inline void SetSection(std::string key) { Model::Internal::key = key; }
