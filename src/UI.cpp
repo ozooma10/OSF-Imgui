@@ -163,7 +163,7 @@ void __stdcall UI::RenderMenuWindow()
     ImGui::BeginChild("SKSEModControlPanelMenuNode", ImVec2(0, -FLT_MIN), ImGuiChildFlags_Borders);
     if (display_node)
     {
-        // display_node->Render();
+        display_node->Render();
     }
     ImGui::EndChild();
 

@@ -50,3 +50,14 @@ void PushBrands()
 }
 
 void Pop() { Fonts::Pop(); }
+
+
+int64_t RegisterInpoutEvent(InputEventCallback callback) { return static_cast<int64_t>(Input::Register(callback)); }
+
+void UnregisterInputEvent(uint64_t id) { Input::Unregister(id); }
+
+int64_t RegisterHudElement(HudElementCallback callback) { return HudManager::Register(callback); }
+
+void UnregisterHudElement(uint64_t id) { HudManager::Unregister(id); }
+
+bool IsAnyBlockingWindowOpened() { return WindowManager::ShouldTheGameBePaused(); }
