@@ -27,7 +27,22 @@ namespace ImGuiMCP
     {
         float x, y;
     };
-    typedef void *ImTextureID;
+    typedef unsigned long long ImTextureID;
+    typedef struct ImTextureData ImTextureData;
+    typedef struct ImTextureRef ImTextureRef;
+    struct ImTextureRef
+    {
+        ImTextureData* _TexData;
+        ImTextureID _TexID;
+    };
+
+    inline ImTextureRef ImTextureRefFromID(ImTextureID tex_id)
+    {
+        ImTextureRef tex_ref{};
+        tex_ref._TexData = nullptr;
+        tex_ref._TexID = tex_id;
+        return tex_ref;
+    }
 }
 
 namespace SFSEMenuFramework
@@ -4951,18 +4966,19 @@ inline namespace ImGuiMCP
                           const ImVec2 uv1 = ImVec2(1, 1), const ImVec4 tint_col = ImVec4(1, 1, 1, 1),
                           const ImVec4 border_col = ImVec4(0, 0, 0, 0))
         {
-            using func_t = void (*)(ImTextureID, const ImVec2, const ImVec2, const ImVec2, const ImVec4, const ImVec4);
-            func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "igImage"));
-            return func(user_texture_id, image_size, uv0, uv1, tint_col, border_col);
+            using func_t =
+                void (*)(ImTextureRef, const ImVec2, const ImVec2, const ImVec2, const ImVec4, const ImVec4);
+            func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "igImageWithBg"));
+            return func(ImTextureRefFromID(user_texture_id), image_size, uv0, uv1, ImVec4(0, 0, 0, 0), tint_col);
         }
         inline bool ImageButton(const char *str_id, ImTextureID user_texture_id, const ImVec2 image_size,
                                 const ImVec2 uv0 = ImVec2(0, 0), const ImVec2 uv1 = ImVec2(1, 1),
                                 const ImVec4 bg_col = ImVec4(0, 0, 0, 0), const ImVec4 tint_col = ImVec4(1, 1, 1, 1))
         {
-            using func_t = bool (*)(const char *, ImTextureID, const ImVec2, const ImVec2, const ImVec2, const ImVec4,
-                                    const ImVec4);
+            using func_t = bool (*)(const char *, ImTextureRef, const ImVec2, const ImVec2, const ImVec2,
+                                    const ImVec4, const ImVec4);
             func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "igImageButton"));
-            return func(str_id, user_texture_id, image_size, uv0, uv1, bg_col, tint_col);
+            return func(str_id, ImTextureRefFromID(user_texture_id), image_size, uv0, uv1, bg_col, tint_col);
         }
         inline bool BeginCombo(const char *label, const char *preview_value, ImGuiComboFlags flags = 0)
         {
@@ -7292,14 +7308,14 @@ inline namespace ImGuiMCP
             }
             inline void PushTextureID(ImDrawList *self, ImTextureID texture_id)
             {
-                using func_t = void (*)(ImDrawList *, ImTextureID);
-                func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_PushTextureID"));
-                return func(self, texture_id);
+                using func_t = void (*)(ImDrawList *, ImTextureRef);
+                func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_PushTexture"));
+                return func(self, ImTextureRefFromID(texture_id));
             }
             inline void PopTextureID(ImDrawList *self)
             {
                 using func_t = void (*)(ImDrawList *);
-                func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_PopTextureID"));
+                func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_PopTexture"));
                 return func(self);
             }
             inline void GetClipRectMin(ImVec2 *pOut, ImDrawList *self)
@@ -7468,28 +7484,29 @@ inline namespace ImGuiMCP
             inline void AddImage(ImDrawList *self, ImTextureID user_texture_id, const ImVec2 p_min, const ImVec2 p_max,
                                  const ImVec2 uv_min, const ImVec2 uv_max, ImU32 col)
             {
-                using func_t =
-                    void (*)(ImDrawList *, ImTextureID, const ImVec2, const ImVec2, const ImVec2, const ImVec2, ImU32);
+                using func_t = void (*)(ImDrawList *, ImTextureRef, const ImVec2, const ImVec2, const ImVec2,
+                                        const ImVec2, ImU32);
                 func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_AddImage"));
-                return func(self, user_texture_id, p_min, p_max, uv_min, uv_max, col);
+                return func(self, ImTextureRefFromID(user_texture_id), p_min, p_max, uv_min, uv_max, col);
             }
             inline void AddImageQuad(ImDrawList *self, ImTextureID user_texture_id, const ImVec2 p1, const ImVec2 p2,
                                      const ImVec2 p3, const ImVec2 p4, const ImVec2 uv1, const ImVec2 uv2,
                                      const ImVec2 uv3, const ImVec2 uv4, ImU32 col)
             {
-                using func_t = void (*)(ImDrawList *, ImTextureID, const ImVec2, const ImVec2, const ImVec2,
+                using func_t = void (*)(ImDrawList *, ImTextureRef, const ImVec2, const ImVec2, const ImVec2,
                                         const ImVec2, const ImVec2, const ImVec2, const ImVec2, const ImVec2, ImU32);
                 func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_AddImageQuad"));
-                return func(self, user_texture_id, p1, p2, p3, p4, uv1, uv2, uv3, uv4, col);
+                return func(self, ImTextureRefFromID(user_texture_id), p1, p2, p3, p4, uv1, uv2, uv3, uv4, col);
             }
             inline void AddImageRounded(ImDrawList *self, ImTextureID user_texture_id, const ImVec2 p_min,
                                         const ImVec2 p_max, const ImVec2 uv_min, const ImVec2 uv_max, ImU32 col,
                                         float rounding, ImDrawFlags flags)
             {
-                using func_t = void (*)(ImDrawList *, ImTextureID, const ImVec2, const ImVec2, const ImVec2,
+                using func_t = void (*)(ImDrawList *, ImTextureRef, const ImVec2, const ImVec2, const ImVec2,
                                         const ImVec2, ImU32, float, ImDrawFlags);
                 func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "ImDrawList_AddImageRounded"));
-                return func(self, user_texture_id, p_min, p_max, uv_min, uv_max, col, rounding, flags);
+                return func(self, ImTextureRefFromID(user_texture_id), p_min, p_max, uv_min, uv_max, col, rounding,
+                            flags);
             }
             inline void PathClear(ImDrawList *self)
             {
@@ -12444,10 +12461,10 @@ inline namespace ImGuiMCP
                                   const ImVec2 uv1, const ImVec4 bg_col, const ImVec4 tint_col,
                                   ImGuiButtonFlags flags)
         {
-            using func_t = bool (*)(ImGuiID, ImTextureID, const ImVec2, const ImVec2, const ImVec2, const ImVec4,
+            using func_t = bool (*)(ImGuiID, ImTextureRef, const ImVec2, const ImVec2, const ImVec2, const ImVec4,
                                     const ImVec4, ImGuiButtonFlags);
             func_t func = reinterpret_cast<func_t>(GetProcAddress(menuFramework, "igImageButtonEx"));
-            return func(id, texture_id, image_size, uv0, uv1, bg_col, tint_col, flags);
+            return func(id, ImTextureRefFromID(texture_id), image_size, uv0, uv1, bg_col, tint_col, flags);
         }
         inline void SeparatorEx(ImGuiSeparatorFlags flags, float thickness)
         {
