@@ -119,7 +119,8 @@ namespace Overlay
 
 		struct RuntimeState
 		{
-			std::mutex mutex;
+			// Texture loading can re-enter overlay accessors while RenderFrame() owns this lock.
+			std::recursive_mutex mutex;
 			bool initialized{false};
 			ComPtr<IDXGISwapChain3> swapChain;
 			ComPtr<ID3D12Device> device;
