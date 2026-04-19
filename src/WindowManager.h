@@ -26,6 +26,7 @@ public:
 
     static bool IsAnyWindowOpen();
     static bool ShouldTheGameBePaused();
+    static void RefreshPauseState();
 
     static void Open();
     static void Close();

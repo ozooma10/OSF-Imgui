@@ -1,6 +1,7 @@
 #include "Overlay.h"
 #include "Fonts.h"
 
+#include <algorithm>
 #include <cfloat>
 #include <cstdint>
 #include <mutex>
@@ -138,6 +139,9 @@ namespace Overlay
 			INT64 ticksPerSecond{0};
 			INT64 lastFrameTicks{0};
 			bool hadFocus{false};
+			bool hadInputCapture{false};
+			POINT overlayCursorClient{};
+			bool overlayCursorValid{false};
 		};
 
 		RuntimeState g_state;
@@ -572,6 +576,118 @@ namespace Overlay
 			}
 		}
 
+		bool TryGetClientRect(RECT &a_clientRect)
+		{
+			if (!g_state.hwnd)
+			{
+				return false;
+			}
+
+			if (!::GetClientRect(g_state.hwnd, &a_clientRect))
+			{
+				return false;
+			}
+
+			return a_clientRect.right > a_clientRect.left && a_clientRect.bottom > a_clientRect.top;
+		}
+
+		void ClampOverlayCursorToClient(POINT &a_position)
+		{
+			RECT clientRect{};
+			if (!TryGetClientRect(clientRect))
+			{
+				return;
+			}
+
+			a_position.x = std::clamp<LONG>(a_position.x, clientRect.left, clientRect.right - 1);
+			a_position.y = std::clamp<LONG>(a_position.y, clientRect.top, clientRect.bottom - 1);
+		}
+
+		void SeedOverlayCursorFromSystem()
+		{
+			POINT position{};
+			if (::GetCursorPos(&position) && ::ScreenToClient(g_state.hwnd, &position))
+			{
+				g_state.overlayCursorClient = position;
+			}
+			else
+			{
+				RECT clientRect{};
+				if (!TryGetClientRect(clientRect))
+				{
+					g_state.overlayCursorValid = false;
+					return;
+				}
+
+				g_state.overlayCursorClient = {
+					(clientRect.left + clientRect.right) / 2,
+					(clientRect.top + clientRect.bottom) / 2};
+			}
+
+			ClampOverlayCursorToClient(g_state.overlayCursorClient);
+			g_state.overlayCursorValid = true;
+		}
+
+		void UpdateOverlayCursorFromRawMouse(const RAWMOUSE &a_mouse)
+		{
+			if (!g_state.overlayCursorValid)
+			{
+				SeedOverlayCursorFromSystem();
+			}
+
+			if (!g_state.overlayCursorValid)
+			{
+				return;
+			}
+
+			if ((a_mouse.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)
+			{
+				SeedOverlayCursorFromSystem();
+				return;
+			}
+
+			g_state.overlayCursorClient.x += a_mouse.lLastX;
+			g_state.overlayCursorClient.y += a_mouse.lLastY;
+			ClampOverlayCursorToClient(g_state.overlayCursorClient);
+		}
+
+		void SubmitOverlayCursorPosition(ImGuiIO &a_io)
+		{
+			if (!g_state.overlayCursorValid)
+			{
+				SeedOverlayCursorFromSystem();
+			}
+
+			if (!g_state.overlayCursorValid)
+			{
+				a_io.AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+				return;
+			}
+
+			a_io.AddMousePosEvent(
+				static_cast<float>(g_state.overlayCursorClient.x),
+				static_cast<float>(g_state.overlayCursorClient.y));
+		}
+
+		void UpdateInputCaptureState(bool a_wantsInputCapture)
+		{
+			if (a_wantsInputCapture)
+			{
+				::ClipCursor(nullptr);
+				::ReleaseCapture();
+				if (!g_state.hadInputCapture)
+				{
+					SeedOverlayCursorFromSystem();
+				}
+			}
+			else if (g_state.hadInputCapture)
+			{
+				g_state.overlayCursorValid = false;
+			}
+
+			g_state.hadInputCapture = a_wantsInputCapture;
+		}
+
 		void HandleKeyboardRawInput(const RAWKEYBOARD &a_keyboard)
 		{
 			const UINT virtualKey = NormalizeVirtualKey(a_keyboard);
@@ -619,7 +735,15 @@ namespace Overlay
 		{
 			ImGuiIO &io = ImGui::GetIO();
 			io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
-			UpdateMousePosition(io);
+			if (WindowManager::IsAnyWindowOpen())
+			{
+				UpdateOverlayCursorFromRawMouse(a_mouse);
+				SubmitOverlayCursorPosition(io);
+			}
+			else
+			{
+				UpdateMousePosition(io);
+			}
 
 			const auto buttonFlags = a_mouse.usButtonFlags;
 			if ((buttonFlags & RI_MOUSE_LEFT_BUTTON_DOWN) != 0)
@@ -677,8 +801,11 @@ namespace Overlay
 		void UpdateFrameInputState()
 		{
 			ImGuiIO &io = ImGui::GetIO();
+			WindowManager::RefreshPauseState();
 
-			io.MouseDrawCursor = WindowManager::IsAnyWindowOpen();
+			const bool wantsInputCapture = WindowManager::IsAnyWindowOpen();
+			io.MouseDrawCursor = wantsInputCapture;
+			UpdateInputCaptureState(wantsInputCapture);
 
 			RECT clientRect{};
 			if (::GetClientRect(g_state.hwnd, &clientRect))
@@ -714,7 +841,11 @@ namespace Overlay
 				g_state.hadFocus = hasFocus;
 			}
 
-			if (hasFocus)
+			if (hasFocus && wantsInputCapture)
+			{
+				SubmitOverlayCursorPosition(io);
+			}
+			else if (hasFocus)
 			{
 				if (io.WantSetMousePos)
 				{

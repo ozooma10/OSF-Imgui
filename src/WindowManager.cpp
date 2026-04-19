@@ -43,6 +43,11 @@ bool WindowManager::ShouldTheGameBePaused()
                        });
 }
 
+void WindowManager::RefreshPauseState()
+{
+    RefreshPause();
+}
+
 void WindowManager::Open()
 {
     if (!MainInterface)
