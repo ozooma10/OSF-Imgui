@@ -5,6 +5,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <mutex>
 
 #include <dxgi.h>
 
@@ -12,6 +13,7 @@
 #undef ERROR
 #endif
 
+#include "Input.h"
 #include "Overlay.h"
 #include "RE/BSGraphics.h"
 #include "REL/Relocation.h"
@@ -20,9 +22,52 @@
 namespace
 {
 	constexpr std::uintptr_t kExpectedProcessRawInputTargetOffset = 0x022D9FC0;
+	constexpr std::size_t kPerformInputProcessingVtableIndex = 1;
 	constexpr std::array<std::uint8_t, 5> kExpectedProcessRawInputCallBytes{
 		0xE8, 0x72, 0x65, 0xA5, 0x00};
 
+	struct CachedInputDispatchResult
+	{
+		const RE::InputEvent *queueHead{nullptr};
+		std::uint32_t timeCode{0};
+		bool blocked{false};
+	};
+
+	std::mutex g_inputDispatchLock;
+	CachedInputDispatchResult g_cachedInputDispatchResult;
+	std::atomic_bool g_loggedFirstUIInputEvent{false};
+	std::atomic_bool g_loggedFirstPlayerCameraInputEvent{false};
+
+	bool DispatchInputCallbacksOnce(const RE::InputEvent *a_queueHead)
+	{
+		if (!a_queueHead)
+		{
+			std::scoped_lock lock(g_inputDispatchLock);
+			g_cachedInputDispatchResult = {};
+			return false;
+		}
+
+		{
+			std::scoped_lock lock(g_inputDispatchLock);
+			if (g_cachedInputDispatchResult.queueHead == a_queueHead &&
+				g_cachedInputDispatchResult.timeCode == a_queueHead->timeCode)
+			{
+				return g_cachedInputDispatchResult.blocked;
+			}
+		}
+
+		const auto blocked = Input::Dispatch(const_cast<RE::InputEvent *>(a_queueHead));
+
+		{
+			std::scoped_lock lock(g_inputDispatchLock);
+			g_cachedInputDispatchResult = {
+				.queueHead = a_queueHead,
+				.timeCode = a_queueHead->timeCode,
+				.blocked = blocked};
+		}
+
+		return blocked;
+	}
 }
 
 bool Hooks::Install()
@@ -30,7 +75,8 @@ bool Hooks::Install()
 	const auto framePresentInstalled = FramePresentHook::install();
 	const auto swapChainInstalled = SwapChainWrapperHook::install();
 	const auto rawInputInstalled = RawInputQueueHook::install();
-	return framePresentInstalled && swapChainInstalled && rawInputInstalled;
+	const auto inputReceiverInstalled = InputEventReceiverHook::install();
+	return framePresentInstalled && swapChainInstalled && rawInputInstalled && inputReceiverInstalled;
 }
 
 // ── Engine end-of-frame wrapper callsite hook ──────────────────
@@ -116,6 +162,74 @@ bool Hooks::RawInputQueueHook::install()
 		originalFunction.address(),
 		originalRva,
 		kExpectedProcessRawInputTargetOffset);
+	return true;
+}
+
+// ── Raw InputEvent receiver hooks (UI + PlayerCamera) ─────────
+
+void Hooks::InputEventReceiverHook::thunkUI(void *a_receiver, const RE::InputEvent *a_queueHead)
+{
+	if (a_queueHead && !g_loggedFirstUIInputEvent.exchange(true, std::memory_order_relaxed))
+	{
+		REX::INFO(
+			"InputEventReceiverHook: observed first UI input queue head={:#x} timeCode={} eventType={}",
+			reinterpret_cast<std::uintptr_t>(a_queueHead),
+			a_queueHead->timeCode,
+			static_cast<std::uint32_t>(a_queueHead->eventType));
+	}
+
+	if (DispatchInputCallbacksOnce(a_queueHead))
+	{
+		return;
+	}
+
+	originalUIFunction(a_receiver, a_queueHead);
+}
+
+void Hooks::InputEventReceiverHook::thunkPlayerCamera(void *a_receiver, const RE::InputEvent *a_queueHead)
+{
+	if (a_queueHead && !g_loggedFirstPlayerCameraInputEvent.exchange(true, std::memory_order_relaxed))
+	{
+		REX::INFO(
+			"InputEventReceiverHook: observed first PlayerCamera input queue head={:#x} timeCode={} eventType={}",
+			reinterpret_cast<std::uintptr_t>(a_queueHead),
+			a_queueHead->timeCode,
+			static_cast<std::uint32_t>(a_queueHead->eventType));
+	}
+
+	if (DispatchInputCallbacksOnce(a_queueHead))
+	{
+		return;
+	}
+
+	originalPlayerCameraFunction(a_receiver, a_queueHead);
+}
+
+bool Hooks::InputEventReceiverHook::install()
+{
+	REL::Relocation<std::uintptr_t> uiVtable{RE::VTABLE::UI[0]};
+	originalUIFunction = uiVtable.write_vfunc(kPerformInputProcessingVtableIndex, thunkUI);
+	if (!originalUIFunction)
+	{
+		REX::ERROR("InputEventReceiverHook: failed to patch UI::PerformInputProcessing");
+		return false;
+	}
+
+	// PlayerCamera's second sub-vtable is the BSInputEventReceiver base at +0x48.
+	REL::Relocation<std::uintptr_t> playerCameraInputVtable{RE::VTABLE::PlayerCamera[1]};
+	originalPlayerCameraFunction = playerCameraInputVtable.write_vfunc(
+		kPerformInputProcessingVtableIndex,
+		thunkPlayerCamera);
+	if (!originalPlayerCameraFunction)
+	{
+		REX::ERROR("InputEventReceiverHook: failed to patch PlayerCamera::PerformInputProcessing");
+		return false;
+	}
+
+	REX::INFO(
+		"InputEventReceiverHook: patched UI vtable {:#x} and PlayerCamera input vtable {:#x}",
+		uiVtable.address(),
+		playerCameraInputVtable.address());
 	return true;
 }
 
