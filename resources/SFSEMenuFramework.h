@@ -5,8 +5,18 @@
 #include <locale>
 #include <string>
 
-static auto menuFramework = GetModuleHandle(L"SFSEMenuFramework");
+static auto menuFramework = GetModuleHandleW(L"SFSEMenuFramework");
 #define MENU_WINDOW SFSEMenuFramework::Model::WindowInterface *
+
+namespace ImGuiMCP
+{
+    typedef struct ImVec2 ImVec2;
+    struct ImVec2
+    {
+        float x, y;
+    };
+    typedef void *ImTextureID;
+}
 
 namespace SFSEMenuFramework
 {
