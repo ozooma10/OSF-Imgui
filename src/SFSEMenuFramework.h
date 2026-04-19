@@ -1,4 +1,5 @@
 #pragma once
+#include "HUDManager.h"
 #include "Input.h"
 #include "WindowManager.h"
 
