@@ -6,7 +6,18 @@
 #include <locale>
 #include <string>
 
-static auto menuFramework = GetModuleHandleW(L"SFSEMenuFramework");
+inline HMODULE SFSEMenuFramework_GetModule()
+{
+    static HMODULE h = []() -> HMODULE
+    {
+        HMODULE m = GetModuleHandleW(L"SFSEMenuFramework");
+        if (!m)
+            m = LoadLibraryW(L"SFSEMenuFramework.dll");
+        return m;
+    }();
+    return h;
+}
+#define menuFramework SFSEMenuFramework_GetModule()
 #define MENU_WINDOW SFSEMenuFramework::Model::WindowInterface *
 
 namespace ImGuiMCP
@@ -24,7 +35,7 @@ namespace SFSEMenuFramework
     using namespace ImGuiMCP;
     inline bool IsInstalled()
     {
-        constexpr auto dllPath = "Data/SFSE/Plugins/osf-menu-framework.dll";
+        constexpr auto dllPath = "Data/SFSE/Plugins/SFSEMenuFramework.dll";
         return std::filesystem::exists(dllPath);
     }
 
@@ -76,7 +87,7 @@ namespace SFSEMenuFramework
         return nullptr;
     }
 
-    inline ImTextureID LoadTexture(std::string texturePath, ImVec2 size = { 0.0f, 0.0f })
+    inline ImTextureID LoadTexture(std::string texturePath, ImVec2 size = {0.0f, 0.0f})
     {
         static auto func = Model::Internal::GetFunction<Model::LoadTextureFunction>("LoadTexture");
         if (func)
@@ -146,7 +157,7 @@ namespace FontAwesome
 
 #pragma region Structs
 
-namespace ImGuiMCP
+inline namespace ImGuiMCP
 {
 #ifndef IM_COL32_R_SHIFT
 #ifdef IMGUI_USE_BGRA_PACKED_COLOR

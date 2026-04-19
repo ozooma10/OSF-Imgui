@@ -1,6 +1,17 @@
 -- include subprojects
 includes("lib/commonlibsf")
 
+add_requires("directxtk12", {
+    configs = {
+        testing = false,
+        gameinput = false,
+        xinput = false,
+        wgi = false,
+        xaudio_redist = false
+    }
+})
+add_requires("nanosvg")
+
 -- set project constants
 set_project("SFSEMenuFramework")
 set_version("0.0.1")
@@ -34,6 +45,7 @@ target("SFSEMenuFramework")
     add_headerfiles("src/**.h")
     add_includedirs("src")
     add_includedirs("lib/cimgui", "lib/cimgui/imgui", "lib/cimgui/imgui/backends")
+    add_packages("directxtk12", "nanosvg")
     set_pcxxheader("src/pch.h")
     add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN", "IMGUI_IMPL_WIN32_DISABLE_GAMEPAD", "IMGUI_DEFINE_MATH_OPERATORS")
     add_syslinks("d3d12", "dxgi", "user32")
