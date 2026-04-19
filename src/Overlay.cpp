@@ -1,5 +1,5 @@
 #include "Overlay.h"
-#include "UIManager.h"
+#include "Fonts.h"
 
 #include <cfloat>
 #include <cstdint>
@@ -22,6 +22,7 @@
 #include "REX/REX.h"
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
+#include "WindowManager.h"
 
 namespace Overlay
 {
@@ -605,7 +606,7 @@ namespace Overlay
 				}
 				else if (!toggleKeyDown)
 				{
-					UIManager::Toggle();
+					WindowManager::Toggle();
 					toggleKeyDown = true;
 				}
 			}
@@ -690,9 +691,7 @@ namespace Overlay
 				if (g_state.lastFrameTicks > 0)
 				{
 					const auto elapsedTicks = now.QuadPart - g_state.lastFrameTicks;
-					io.DeltaTime = elapsedTicks > 0 ?
-									   static_cast<float>(elapsedTicks) / static_cast<float>(g_state.ticksPerSecond) :
-									   (1.0f / 60.0f);
+					io.DeltaTime = elapsedTicks > 0 ? static_cast<float>(elapsedTicks) / static_cast<float>(g_state.ticksPerSecond) : (1.0f / 60.0f);
 				}
 				else
 				{
@@ -891,6 +890,8 @@ namespace Overlay
 		ImGui::GetMainViewport()->PlatformHandle = swapChainDesc.OutputWindow;
 		ImGui::GetMainViewport()->PlatformHandleRaw = swapChainDesc.OutputWindow;
 
+		Fonts::Load(io);
+
 		ImGui_ImplDX12_InitInfo initInfo{};
 		initInfo.Device = device.Get();
 		initInfo.CommandQueue = a_commandQueue;
@@ -965,7 +966,7 @@ namespace Overlay
 	bool WantsInputCapture()
 	{
 		std::scoped_lock lock(g_state.mutex);
-		if (!g_state.initialized || !UIManager::IsOpen() || ImGui::GetCurrentContext() == nullptr)
+		if (!g_state.initialized || !WindowManager::IsAnyWindowOpen() || ImGui::GetCurrentContext() == nullptr)
 		{
 			return false;
 		}
@@ -1008,10 +1009,7 @@ namespace Overlay
 		ImGui_ImplDX12_NewFrame();
 		ImGui::NewFrame();
 
-		ImGui::Begin("OSF");
-		ImGui::Text("ImGui is alive");
-		ImGui::End();
-		UIManager::DrawFrame();
+		WindowManager::RenderWindows();
 
 		ImGui::Render();
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_state.commandList.Get());

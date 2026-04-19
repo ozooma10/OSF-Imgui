@@ -62,6 +62,17 @@ target("osf-menu-framework")
                 cprint("${green}[osf-menu-framework] copied %s:${clear} %s -> %s", entry.label, entry.src, dst)
             end
         end
+
+        local fontsrc = path.join(os.projectdir(), "resources", "fonts")
+        if os.isdir(fontsrc) then
+            local fontdst = path.join(plugindir, "Fonts")
+            os.mkdir(fontdst)
+            for _, ttf in ipairs(os.files(path.join(fontsrc, "*.ttf"))) do
+                local dst = path.join(fontdst, path.filename(ttf))
+                os.trycp(ttf, dst)
+                cprint("${green}[osf-menu-framework] copied font:${clear} %s -> %s", ttf, dst)
+            end
+        end
     end)
 
     before_install(function(target)
