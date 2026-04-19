@@ -20,7 +20,9 @@
 #undef ERROR
 #endif
 
+#include "RE/B/BSInputEventUser.h"
 #include "REX/REX.h"
+#include "SFSE/InputMap.h"
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
 #include "WindowManager.h"
@@ -145,6 +147,77 @@ namespace Overlay
 		};
 
 		RuntimeState g_state;
+
+		[[nodiscard]] bool ShouldCaptureBlockingInput()
+		{
+			return WindowManager::ShouldTheGameBePaused();
+		}
+
+		[[nodiscard]] ImGuiKey GamepadKeycodeToImGuiKey(std::int32_t a_keyCode)
+		{
+			switch (static_cast<std::uint32_t>(a_keyCode))
+			{
+			case SFSE::InputMap::kGamepadButtonOffset_DPAD_UP:
+				return ImGuiKey_GamepadDpadUp;
+			case SFSE::InputMap::kGamepadButtonOffset_DPAD_DOWN:
+				return ImGuiKey_GamepadDpadDown;
+			case SFSE::InputMap::kGamepadButtonOffset_DPAD_LEFT:
+				return ImGuiKey_GamepadDpadLeft;
+			case SFSE::InputMap::kGamepadButtonOffset_DPAD_RIGHT:
+				return ImGuiKey_GamepadDpadRight;
+			case SFSE::InputMap::kGamepadButtonOffset_START:
+				return ImGuiKey_GamepadStart;
+			case SFSE::InputMap::kGamepadButtonOffset_BACK:
+				return ImGuiKey_GamepadBack;
+			case SFSE::InputMap::kGamepadButtonOffset_LEFT_THUMB:
+				return ImGuiKey_GamepadL3;
+			case SFSE::InputMap::kGamepadButtonOffset_RIGHT_THUMB:
+				return ImGuiKey_GamepadR3;
+			case SFSE::InputMap::kGamepadButtonOffset_LEFT_SHOULDER:
+				return ImGuiKey_GamepadL1;
+			case SFSE::InputMap::kGamepadButtonOffset_RIGHT_SHOULDER:
+				return ImGuiKey_GamepadR1;
+			case SFSE::InputMap::kGamepadButtonOffset_A:
+				return ImGuiKey_GamepadFaceDown;
+			case SFSE::InputMap::kGamepadButtonOffset_B:
+				return ImGuiKey_GamepadFaceRight;
+			case SFSE::InputMap::kGamepadButtonOffset_X:
+				return ImGuiKey_GamepadFaceLeft;
+			case SFSE::InputMap::kGamepadButtonOffset_Y:
+				return ImGuiKey_GamepadFaceUp;
+			case SFSE::InputMap::kGamepadButtonOffset_LT:
+				return ImGuiKey_GamepadL2;
+			case SFSE::InputMap::kGamepadButtonOffset_RT:
+				return ImGuiKey_GamepadR2;
+			default:
+				return ImGuiKey_None;
+			}
+		}
+
+		void TranslateGamepadButtonEvent(ImGuiIO& a_io, const RE::ButtonEvent& a_button)
+		{
+			if (a_button.deviceType != RE::InputEvent::DeviceType::kGamepad)
+			{
+				return;
+			}
+
+			const auto imguiKey = GamepadKeycodeToImGuiKey(a_button.idCode);
+			if (imguiKey == ImGuiKey_None)
+			{
+				return;
+			}
+
+			const auto value = std::clamp(a_button.value, 0.0f, 1.0f);
+			const auto isPressed = value > 0.0f || a_button.heldDownSecs > 0.0f;
+			if (imguiKey == ImGuiKey_GamepadL2 || imguiKey == ImGuiKey_GamepadR2)
+			{
+				a_io.AddKeyAnalogEvent(imguiKey, isPressed, value);
+			}
+			else
+			{
+				a_io.AddKeyEvent(imguiKey, isPressed);
+			}
+		}
 
 		void AllocateSrvDescriptor(
 			ImGui_ImplDX12_InitInfo *,
@@ -735,7 +808,7 @@ namespace Overlay
 		{
 			ImGuiIO &io = ImGui::GetIO();
 			io.AddMouseSourceEvent(ImGuiMouseSource_Mouse);
-			if (WindowManager::IsAnyWindowOpen())
+			if (ShouldCaptureBlockingInput())
 			{
 				UpdateOverlayCursorFromRawMouse(a_mouse);
 				SubmitOverlayCursorPosition(io);
@@ -803,8 +876,12 @@ namespace Overlay
 			ImGuiIO &io = ImGui::GetIO();
 			WindowManager::RefreshPauseState();
 
-			const bool wantsInputCapture = WindowManager::IsAnyWindowOpen();
+			const bool wantsInputCapture = ShouldCaptureBlockingInput();
 			io.MouseDrawCursor = wantsInputCapture;
+			if (g_state.hadInputCapture && !wantsInputCapture)
+			{
+				io.ClearInputKeys();
+			}
 			UpdateInputCaptureState(wantsInputCapture);
 
 			RECT clientRect{};
@@ -1148,7 +1225,34 @@ namespace Overlay
 			return false;
 		}
 
-		return WindowManager::IsAnyWindowOpen();
+		return ShouldCaptureBlockingInput();
+	}
+
+	bool ConsumeInputQueue(const RE::InputEvent* a_queueHead)
+	{
+		if (!a_queueHead)
+		{
+			return false;
+		}
+
+		std::scoped_lock lock(g_state.mutex);
+		if (!g_state.initialized || ImGui::GetCurrentContext() == nullptr || !ShouldCaptureBlockingInput())
+		{
+			return false;
+		}
+
+		auto& io = ImGui::GetIO();
+		for (auto* event = a_queueHead; event != nullptr; event = event->next)
+		{
+			if (event->eventType != RE::InputEvent::EventType::kButton || !event->HasIDCode())
+			{
+				continue;
+			}
+
+			TranslateGamepadButtonEvent(io, static_cast<const RE::ButtonEvent&>(*event));
+		}
+
+		return true;
 	}
 
 	void RenderFrame()

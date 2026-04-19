@@ -30,7 +30,8 @@ namespace
 	{
 		const RE::InputEvent *queueHead{nullptr};
 		std::uint32_t timeCode{0};
-		bool blocked{false};
+		bool callbackBlocked{false};
+		bool overlayConsumed{false};
 	};
 
 	std::mutex g_inputDispatchLock;
@@ -38,13 +39,13 @@ namespace
 	std::atomic_bool g_loggedFirstUIInputEvent{false};
 	std::atomic_bool g_loggedFirstPlayerCameraInputEvent{false};
 
-	bool DispatchInputCallbacksOnce(const RE::InputEvent *a_queueHead)
+	CachedInputDispatchResult ProcessInputQueueOnce(const RE::InputEvent *a_queueHead)
 	{
 		if (!a_queueHead)
 		{
 			std::scoped_lock lock(g_inputDispatchLock);
 			g_cachedInputDispatchResult = {};
-			return false;
+			return {};
 		}
 
 		{
@@ -52,21 +53,22 @@ namespace
 			if (g_cachedInputDispatchResult.queueHead == a_queueHead &&
 				g_cachedInputDispatchResult.timeCode == a_queueHead->timeCode)
 			{
-				return g_cachedInputDispatchResult.blocked;
+				return g_cachedInputDispatchResult;
 			}
 		}
 
-		const auto blocked = Input::Dispatch(const_cast<RE::InputEvent *>(a_queueHead));
+		CachedInputDispatchResult result{
+			.queueHead = a_queueHead,
+			.timeCode = a_queueHead->timeCode,
+			.callbackBlocked = Input::Dispatch(const_cast<RE::InputEvent *>(a_queueHead)),
+			.overlayConsumed = Overlay::ConsumeInputQueue(a_queueHead)};
 
 		{
 			std::scoped_lock lock(g_inputDispatchLock);
-			g_cachedInputDispatchResult = {
-				.queueHead = a_queueHead,
-				.timeCode = a_queueHead->timeCode,
-				.blocked = blocked};
+			g_cachedInputDispatchResult = result;
 		}
 
-		return blocked;
+		return result;
 	}
 }
 
@@ -178,7 +180,8 @@ void Hooks::InputEventReceiverHook::thunkUI(void *a_receiver, const RE::InputEve
 			static_cast<std::uint32_t>(a_queueHead->eventType));
 	}
 
-	if (DispatchInputCallbacksOnce(a_queueHead))
+	const auto result = ProcessInputQueueOnce(a_queueHead);
+	if (result.callbackBlocked || result.overlayConsumed)
 	{
 		return;
 	}
@@ -197,7 +200,8 @@ void Hooks::InputEventReceiverHook::thunkPlayerCamera(void *a_receiver, const RE
 			static_cast<std::uint32_t>(a_queueHead->eventType));
 	}
 
-	if (DispatchInputCallbacksOnce(a_queueHead))
+	const auto result = ProcessInputQueueOnce(a_queueHead);
+	if (result.callbackBlocked || result.overlayConsumed)
 	{
 		return;
 	}
