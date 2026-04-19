@@ -13,16 +13,17 @@ namespace Fonts
 		constexpr ImWchar kIconMax = 0xf8ff;
 		constexpr auto kFontDir = "Data/SFSE/Plugins/Fonts";
 
-		ImFont* g_default{ nullptr };
-		ImFont* g_solid{ nullptr };
-		ImFont* g_regular{ nullptr };
-		ImFont* g_brands{ nullptr };
+		ImFont *g_default{nullptr};
+		ImFont *g_solid{nullptr};
+		ImFont *g_regular{nullptr};
+		ImFont *g_brands{nullptr};
 
-		ImFont* LoadTTF(ImGuiIO& a_io, const char* a_name, float a_size,
-			const ImFontConfig* a_cfg, const ImWchar* a_ranges)
+		ImFont *LoadTTF(ImGuiIO &a_io, const char *a_name, float a_size,
+						const ImFontConfig *a_cfg, const ImWchar *a_ranges)
 		{
 			const auto path = std::filesystem::path(kFontDir) / a_name;
-			if (!std::filesystem::exists(path)) {
+			if (!std::filesystem::exists(path))
+			{
 				REX::WARN("Fonts: missing {}", path.string());
 				return nullptr;
 			}
@@ -30,9 +31,9 @@ namespace Fonts
 		}
 	}
 
-	bool Load(ImGuiIO& a_io, float a_size)
+	bool Load(ImGuiIO &a_io, float a_size)
 	{
-		static const ImWchar iconRanges[] = { kIconMin, kIconMax, 0 };
+		static const ImWchar iconRanges[] = {kIconMin, kIconMax, 0};
 
 		ImFontConfig defaultCfg{};
 		defaultCfg.SizePixels = a_size;
@@ -52,24 +53,27 @@ namespace Fonts
 		return g_solid && g_regular && g_brands;
 	}
 
-	ImFont* Default() { return g_default; }
-	ImFont* Solid() { return g_solid; }
-	ImFont* Regular() { return g_regular; }
-	ImFont* Brands() { return g_brands; }
+	ImFont *Default() { return g_default; }
+	ImFont *Solid() { return g_solid; }
+	ImFont *Regular() { return g_regular; }
+	ImFont *Brands() { return g_brands; }
 
 	void PushSolid()
 	{
-		if (g_solid) ImGui::PushFont(g_solid);
+		if (g_solid)
+			ImGui::PushFont(g_solid);
 	}
 
 	void PushRegular()
 	{
-		if (g_regular) ImGui::PushFont(g_regular);
+		if (g_regular)
+			ImGui::PushFont(g_regular);
 	}
 
 	void PushBrands()
 	{
-		if (g_brands) ImGui::PushFont(g_brands);
+		if (g_brands)
+			ImGui::PushFont(g_brands);
 	}
 
 	void Pop()

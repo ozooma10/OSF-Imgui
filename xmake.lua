@@ -2,7 +2,7 @@
 includes("lib/commonlibsf")
 
 -- set project constants
-set_project("osf-menu-framework")
+set_project("SFSEMenuFramework")
 set_version("0.0.1")
 set_license("MIT")
 set_languages("c++23")
@@ -13,11 +13,11 @@ add_rules("mode.debug", "mode.releasedbg")
 add_rules("plugin.vsxmake.autoupdate")
 
 -- define targets
-target("osf-menu-framework")
+target("SFSEMenuFramework")
     add_rules("commonlibsf.plugin", {
-        name = "osf-menu-framework",
+        name = "SFSEMenuFramework",
         author = "libxse",
-        description = "OSF Menu Framework",
+        description = "SFSE Menu Framework",
         email = "getlit@biz.biz"
     })
 
@@ -43,7 +43,7 @@ target("osf-menu-framework")
         elseif gameroot and #gameroot > 0 then
             plugindir = path.join(gameroot, "Data", "SFSE", "Plugins")
         else
-            cprint("${yellow}[osf-menu-framework] no XSE_SF_MODS_PATH or XSE_SF_GAME_PATH set; skipping post-build copy")
+            cprint("${yellow}[SFSEMenuFramework] no XSE_SF_MODS_PATH or XSE_SF_GAME_PATH set; skipping post-build copy")
             return
         end
 
@@ -53,13 +53,13 @@ target("osf-menu-framework")
         }
 
         os.mkdir(plugindir)
-        cprint("${bright cyan}[osf-menu-framework] copying build outputs to %s", plugindir)
+        cprint("${bright cyan}[SFSEMenuFramework] copying build outputs to %s", plugindir)
 
         for _, entry in ipairs(files_to_copy) do
             if entry.src and os.isfile(entry.src) then
                 local dst = path.join(plugindir, path.filename(entry.src))
                 os.trycp(entry.src, dst)
-                cprint("${green}[osf-menu-framework] copied %s:${clear} %s -> %s", entry.label, entry.src, dst)
+                cprint("${green}[SFSEMenuFramework] copied %s:${clear} %s -> %s", entry.label, entry.src, dst)
             end
         end
 
@@ -70,7 +70,7 @@ target("osf-menu-framework")
             for _, ttf in ipairs(os.files(path.join(fontsrc, "*.ttf"))) do
                 local dst = path.join(fontdst, path.filename(ttf))
                 os.trycp(ttf, dst)
-                cprint("${green}[osf-menu-framework] copied font:${clear} %s -> %s", ttf, dst)
+                cprint("${green}[SFSEMenuFramework] copied font:${clear} %s -> %s", ttf, dst)
             end
         end
     end)
@@ -78,11 +78,11 @@ target("osf-menu-framework")
     before_install(function(target)
         local srcfiles, dstfiles = target:installfiles()
         if not srcfiles or #srcfiles == 0 or not dstfiles or #dstfiles == 0 then
-            cprint("${yellow}[osf-menu-framework] no install copy targets are configured")
+            cprint("${yellow}[SFSEMenuFramework] no install copy targets are configured")
             return
         end
 
-        cprint("${bright cyan}[osf-menu-framework] install copy plan:")
+        cprint("${bright cyan}[SFSEMenuFramework] install copy plan:")
         for idx, srcfile in ipairs(srcfiles) do
             cprint("${dim}  %s -> %s", srcfile, dstfiles[idx])
         end
@@ -94,7 +94,7 @@ target("osf-menu-framework")
             return
         end
 
-        cprint("${bright green}[osf-menu-framework] install copy results:")
+        cprint("${bright green}[SFSEMenuFramework] install copy results:")
         for _, dstfile in ipairs(dstfiles) do
             if os.isfile(dstfile) then
                 cprint("${green}  copied:${clear} %s", dstfile)

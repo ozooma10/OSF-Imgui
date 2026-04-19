@@ -39,3 +39,4 @@ namespace Hooks
 		static bool install();
 		static inline REL::Relocation<decltype(thunk)> originalFunction;
 	};
+}
