@@ -32,13 +32,15 @@ Window::Window()
 bool WindowManager::IsAnyWindowOpen()
 {
     return std::any_of(Windows.begin(), Windows.end(),
-                       [](Window *x) { return x->Interface->IsOpen.load(); });
+                       [](Window *x)
+                       { return x->Interface->IsOpen.load(); });
 }
 
 bool WindowManager::ShouldTheGameBePaused()
 {
     return std::any_of(Windows.begin(), Windows.end(),
-                       [](Window *x) {
+                       [](Window *x)
+                       {
                            return x->Interface->IsOpen.load() && x->Interface->BlockUserInput.load();
                        });
 }
@@ -58,6 +60,14 @@ void WindowManager::Open()
     {
         RefreshPause();
         REX::INFO("WindowManager: opened");
+
+        if (auto *ui = RE::UI::GetSingleton(); ui && !ui->IsMenuOpen(RE::BSFixedString{"PauseMenu"}))
+        {
+            if (auto *queue = RE::UIMessageQueue::GetSingleton())
+            {
+                queue->AddMessage(RE::BSFixedString{"PauseMenu"}, RE::UI_MESSAGE_TYPE::kShow);
+            }
+        }
     }
 }
 

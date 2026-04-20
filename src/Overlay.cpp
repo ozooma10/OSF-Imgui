@@ -145,6 +145,8 @@ namespace Overlay
 			INT64 lastFrameTicks{0};
 			bool hadFocus{false};
 			bool hadInputCapture{false};
+			POINT overlayCursorClient{};
+			bool overlayCursorValid{false};
 			WNDPROC originalWndProc{nullptr};
 		};
 
@@ -178,6 +180,112 @@ namespace Overlay
 		[[nodiscard]] bool ShouldCaptureBlockingInput()
 		{
 			return WindowManager::ShouldTheGameBePaused();
+		}
+
+		bool TryGetClientRect(RECT &a_clientRect)
+		{
+			if (!g_state.hwnd)
+			{
+				return false;
+			}
+
+			if (!::GetClientRect(g_state.hwnd, &a_clientRect))
+			{
+				return false;
+			}
+
+			return a_clientRect.right > a_clientRect.left && a_clientRect.bottom > a_clientRect.top;
+		}
+
+		void ClampOverlayCursorToClient(POINT &a_position)
+		{
+			RECT clientRect{};
+			if (!TryGetClientRect(clientRect))
+			{
+				return;
+			}
+
+			a_position.x = std::clamp<LONG>(a_position.x, clientRect.left, clientRect.right - 1);
+			a_position.y = std::clamp<LONG>(a_position.y, clientRect.top, clientRect.bottom - 1);
+		}
+
+		void SeedOverlayCursorFromSystem()
+		{
+			POINT position{};
+			if (::GetCursorPos(&position) && ::ScreenToClient(g_state.hwnd, &position))
+			{
+				g_state.overlayCursorClient = position;
+			}
+			else
+			{
+				RECT clientRect{};
+				if (!TryGetClientRect(clientRect))
+				{
+					g_state.overlayCursorValid = false;
+					return;
+				}
+
+				g_state.overlayCursorClient = {
+					(clientRect.left + clientRect.right) / 2,
+					(clientRect.top + clientRect.bottom) / 2};
+			}
+
+			ClampOverlayCursorToClient(g_state.overlayCursorClient);
+			g_state.overlayCursorValid = true;
+		}
+
+		void UpdateOverlayCursorFromRawMouse(const RAWMOUSE &a_mouse)
+		{
+			if (!g_state.overlayCursorValid)
+			{
+				SeedOverlayCursorFromSystem();
+			}
+
+			if (!g_state.overlayCursorValid)
+			{
+				return;
+			}
+
+			if ((a_mouse.usFlags & MOUSE_MOVE_ABSOLUTE) != 0)
+			{
+				SeedOverlayCursorFromSystem();
+				return;
+			}
+
+			g_state.overlayCursorClient.x += a_mouse.lLastX;
+			g_state.overlayCursorClient.y += a_mouse.lLastY;
+			ClampOverlayCursorToClient(g_state.overlayCursorClient);
+		}
+
+		void SubmitOverlayCursorPosition(ImGuiIO &a_io)
+		{
+			if (!g_state.overlayCursorValid)
+			{
+				SeedOverlayCursorFromSystem();
+			}
+
+			if (!g_state.overlayCursorValid)
+			{
+				return;
+			}
+
+			a_io.AddMousePosEvent(
+				static_cast<float>(g_state.overlayCursorClient.x),
+				static_cast<float>(g_state.overlayCursorClient.y));
+		}
+
+		void SyncSystemCursorToOverlay()
+		{
+			if (!g_state.hwnd || !g_state.overlayCursorValid)
+			{
+				return;
+			}
+
+			POINT position = g_state.overlayCursorClient;
+			if (::ClientToScreen(g_state.hwnd, &position))
+			{
+				::SetCursorPos(position.x, position.y);
+			}
 		}
 
 		[[nodiscard]] ImGuiKey GamepadKeycodeToImGuiKey(std::int32_t a_keyCode)
@@ -667,6 +775,15 @@ namespace Overlay
 			{
 				::ClipCursor(nullptr);
 				::ReleaseCapture();
+				if (!g_state.hadInputCapture)
+				{
+					SeedOverlayCursorFromSystem();
+				}
+			}
+			else if (g_state.hadInputCapture)
+			{
+				SyncSystemCursorToOverlay();
+				g_state.overlayCursorValid = false;
 			}
 
 			g_state.hadInputCapture = a_wantsInputCapture;
@@ -1020,6 +1137,10 @@ namespace Overlay
 		{
 			HandleKeyboardRawInput(rawInput.data.keyboard);
 		}
+		else if (rawInput.header.dwType == RIM_TYPEMOUSE && ShouldCaptureBlockingInput())
+		{
+			UpdateOverlayCursorFromRawMouse(rawInput.data.mouse);
+		}
 	}
 
 	bool WantsInputCapture()
@@ -1092,6 +1213,10 @@ namespace Overlay
 		UpdateFrameInputState();
 		ImGui_ImplDX12_NewFrame();
 		ImGui_ImplWin32_NewFrame();
+		if (ShouldCaptureBlockingInput())
+		{
+			SubmitOverlayCursorPosition(ImGui::GetIO());
+		}
 		ImGui::NewFrame();
 
 		WindowManager::RenderWindows();
