@@ -14,8 +14,8 @@ namespace
 {
 	using ConsoleHelper_t = bool (*)();
 
-	constexpr std::uintptr_t kToggleGamePauseRva = 0x0C666C0;
-	constexpr std::uintptr_t kStepOneFrameRva = 0x0C666E0;
+	constexpr REL::ID kToggleGamePauseID{66827};
+	constexpr REL::ID kStepOneFrameID{66828};
 
 	std::atomic_bool g_wantsFreeze{false};
 	std::atomic_bool g_ownsFreeze{false};
@@ -23,27 +23,27 @@ namespace
 
 	[[nodiscard]] bool FreezeTime()
 	{
-		const auto* main = RE::Main::GetSingleton();
+		const auto *main = RE::Main::GetSingleton();
 		return main && main->freezeTime;
 	}
 
 	[[nodiscard]] bool FreezeNextFrame()
 	{
-		const auto* main = RE::Main::GetSingleton();
+		const auto *main = RE::Main::GetSingleton();
 		return main && main->freezeNextFrame;
 	}
 
 	[[nodiscard]] bool IsPauseMenuOpen()
 	{
 		static const RE::BSFixedString pauseMenu{"PauseMenu"};
-		const auto* ui = RE::UI::GetSingleton();
+		const auto *ui = RE::UI::GetSingleton();
 		return ui && ui->IsMenuOpen(pauseMenu);
 	}
 
 	bool ToggleGamePause(std::string_view a_reason)
 	{
 		const bool before = FreezeTime();
-		static REL::Relocation<ConsoleHelper_t> toggle{REL::Offset{kToggleGamePauseRva}};
+		static REL::Relocation<ConsoleHelper_t> toggle{kToggleGamePauseID};
 		const bool result = toggle();
 		const bool after = FreezeTime();
 
@@ -117,7 +117,7 @@ void Util::Freeze::StepOneFrame()
 
 	const bool beforeFreeze = FreezeTime();
 	const bool beforeStep = FreezeNextFrame();
-	static REL::Relocation<ConsoleHelper_t> step{REL::Offset{kStepOneFrameRva}};
+	static REL::Relocation<ConsoleHelper_t> step{kStepOneFrameID};
 	const bool result = step();
 
 	REX::INFO(
@@ -149,8 +149,4 @@ void Util::Freeze::OnFrame()
 
 	ToggleGamePause("OnFrame");
 	g_ownsFreeze.store(FreezeTime(), std::memory_order_release);
-	REX::INFO(
-		"Freeze: restored freezeTime=false -> {} ownsFreeze={}",
-		FreezeTime(),
-		g_ownsFreeze.load(std::memory_order_relaxed));
 }
