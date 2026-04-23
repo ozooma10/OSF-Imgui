@@ -37,7 +37,29 @@ namespace
 	std::mutex g_inputDispatchLock;
 	CachedInputDispatchResult g_cachedInputDispatchResult;
 	std::atomic_bool g_loggedFirstUIInputEvent{false};
-	std::atomic_bool g_loggedFirstPlayerCameraInputEvent{false};
+	std::atomic_bool g_loggedUnexpectedInputQueueHead{false};
+
+	bool LooksLikeInputEvent(const RE::InputEvent *a_event)
+	{
+		if (!a_event)
+		{
+			return false;
+		}
+
+		const auto deviceType = static_cast<std::uint32_t>(a_event->deviceType);
+		const auto eventType = static_cast<std::uint32_t>(a_event->eventType);
+		const auto status = static_cast<std::uint32_t>(a_event->status);
+
+		const auto deviceTypeNone = static_cast<std::uint32_t>(RE::InputEvent::DeviceType::kNone);
+		const auto maxDeviceType = static_cast<std::uint32_t>(RE::InputEvent::DeviceType::kKinect);
+		const auto maxEventType = static_cast<std::uint32_t>(RE::InputEvent::EventType::kNone);
+		const auto maxStatus = static_cast<std::uint32_t>(RE::InputEvent::Status::kStop);
+
+		return (deviceType == deviceTypeNone || deviceType <= maxDeviceType) &&
+			   eventType <= maxEventType &&
+			   status <= maxStatus &&
+			   a_event->next != a_event;
+	}
 
 	CachedInputDispatchResult ProcessInputQueueOnce(const RE::InputEvent *a_queueHead)
 	{
@@ -45,6 +67,22 @@ namespace
 		{
 			std::scoped_lock lock(g_inputDispatchLock);
 			g_cachedInputDispatchResult = {};
+			return {};
+		}
+
+		if (!LooksLikeInputEvent(a_queueHead))
+		{
+			if (!g_loggedUnexpectedInputQueueHead.exchange(true, std::memory_order_relaxed))
+			{
+				REX::WARN(
+					"InputEventReceiverHook: ignored non-InputEvent payload head={:#x} deviceType={} eventType={} timeCode={} status={}",
+					reinterpret_cast<std::uintptr_t>(a_queueHead),
+					static_cast<std::uint32_t>(a_queueHead->deviceType),
+					static_cast<std::uint32_t>(a_queueHead->eventType),
+					a_queueHead->timeCode,
+					static_cast<std::uint32_t>(a_queueHead->status));
+			}
+
 			return {};
 		}
 
@@ -189,26 +227,6 @@ void Hooks::InputEventReceiverHook::thunkUI(void *a_receiver, const RE::InputEve
 	originalUIFunction(a_receiver, a_queueHead);
 }
 
-void Hooks::InputEventReceiverHook::thunkPlayerCamera(void *a_receiver, const RE::InputEvent *a_queueHead)
-{
-	if (a_queueHead && !g_loggedFirstPlayerCameraInputEvent.exchange(true, std::memory_order_relaxed))
-	{
-		REX::INFO(
-			"InputEventReceiverHook: observed first PlayerCamera input queue head={:#x} timeCode={} eventType={}",
-			reinterpret_cast<std::uintptr_t>(a_queueHead),
-			a_queueHead->timeCode,
-			static_cast<std::uint32_t>(a_queueHead->eventType));
-	}
-
-	const auto result = ProcessInputQueueOnce(a_queueHead);
-	if (result.callbackBlocked || result.overlayConsumed)
-	{
-		return;
-	}
-
-	originalPlayerCameraFunction(a_receiver, a_queueHead);
-}
-
 bool Hooks::InputEventReceiverHook::install()
 {
 	REL::Relocation<std::uintptr_t> uiVtable{RE::VTABLE::UI[0]};
@@ -219,21 +237,9 @@ bool Hooks::InputEventReceiverHook::install()
 		return false;
 	}
 
-	// PlayerCamera's second sub-vtable is the BSInputEventReceiver base at +0x48.
-	REL::Relocation<std::uintptr_t> playerCameraInputVtable{RE::VTABLE::PlayerCamera[1]};
-	originalPlayerCameraFunction = playerCameraInputVtable.write_vfunc(
-		kPerformInputProcessingVtableIndex,
-		thunkPlayerCamera);
-	if (!originalPlayerCameraFunction)
-	{
-		REX::ERROR("InputEventReceiverHook: failed to patch PlayerCamera::PerformInputProcessing");
-		return false;
-	}
-
 	REX::INFO(
-		"InputEventReceiverHook: patched UI vtable {:#x} and PlayerCamera input vtable {:#x}",
-		uiVtable.address(),
-		playerCameraInputVtable.address());
+		"InputEventReceiverHook: patched UI vtable {:#x}; PlayerCamera input hook disabled until its payload shape is RE-validated",
+		uiVtable.address());
 	return true;
 }
 

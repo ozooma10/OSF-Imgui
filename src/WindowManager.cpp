@@ -9,6 +9,11 @@
 
 namespace
 {
+    // True while the framework is the one holding Main::isGameMenuPaused high.
+    // We only touch the flag on transitions so we never clobber the pause state
+    // the game itself needs during loading screens, the main menu, cinematics, etc.
+    bool g_frameworkOwnsPause = false;
+
     void ApplyPause(bool a_pause)
     {
         if (auto *main = RE::Main::GetSingleton())
@@ -17,9 +22,21 @@ namespace
         }
     }
 
+    // Called every frame from Overlay::UpdateFrameInputState.
     void RefreshPause()
     {
-        ApplyPause(WindowManager::ShouldTheGameBePaused());
+        const bool shouldPause = WindowManager::ShouldTheGameBePaused();
+
+        if (shouldPause)
+        {
+            ApplyPause(true);
+            g_frameworkOwnsPause = true;
+        }
+        else if (g_frameworkOwnsPause)
+        {
+            ApplyPause(false);
+            g_frameworkOwnsPause = false;
+        }
     }
 }
 
@@ -60,14 +77,6 @@ void WindowManager::Open()
     {
         RefreshPause();
         REX::INFO("WindowManager: opened");
-
-        if (auto *ui = RE::UI::GetSingleton(); ui && !ui->IsMenuOpen(RE::BSFixedString{"PauseMenu"}))
-        {
-            if (auto *queue = RE::UIMessageQueue::GetSingleton())
-            {
-                queue->AddMessage(RE::BSFixedString{"PauseMenu"}, RE::UI_MESSAGE_TYPE::kShow);
-            }
-        }
     }
 }
 

@@ -45,10 +45,8 @@ namespace Hooks
 		using func_t = void (*)(void *a_receiver, const RE::InputEvent *a_queueHead);
 
 		static void thunkUI(void *a_receiver, const RE::InputEvent *a_queueHead);
-		static void thunkPlayerCamera(void *a_receiver, const RE::InputEvent *a_queueHead);
 		static bool install();
 
 		static inline REL::Relocation<func_t> originalUIFunction;
-		static inline REL::Relocation<func_t> originalPlayerCameraFunction;
 	};
 }
