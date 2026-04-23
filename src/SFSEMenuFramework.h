@@ -24,3 +24,6 @@ FUNCTION_PREFIX void UnregisterHudElement(uint64_t id);
 FUNCTION_PREFIX bool IsAnyBlockingWindowOpened();
 FUNCTION_PREFIX ImTextureID LoadTexture(const char* texturePath, ImVec2* size);
 FUNCTION_PREFIX void DisposeTexture(const char* texturePath);
+FUNCTION_PREFIX void FreezeGame();
+FUNCTION_PREFIX void UnfreezeGame();
+FUNCTION_PREFIX void StepOneGameFrame();

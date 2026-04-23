@@ -18,6 +18,7 @@
 #include "RE/BSGraphics.h"
 #include "REL/Relocation.h"
 #include "SFSE/API.h"
+#include "Util/Freeze.h"
 
 namespace
 {
@@ -123,6 +124,8 @@ bool Hooks::Install()
 
 void Hooks::FramePresentHook::thunk(void *a_presentBatch)
 {
+	Util::Freeze::OnFrame();
+
 	if (Overlay::IsInitialized())
 	{
 		Overlay::RenderFrame();

@@ -4,6 +4,7 @@
 #include "Fonts.h"
 #include "UI.h"
 #include "TextureLoader.h"
+#include "Util/Freeze.h"
 
 void AddSectionItem(const char *path, RenderFunction rendererFunction)
 {
@@ -80,3 +81,9 @@ void DisposeTexture(const char* texturePath)
 
     TextureLoader::DisposeTexture(texturePath);
 }
+
+void FreezeGame() { Util::Freeze::Freeze(); }
+
+void UnfreezeGame() { Util::Freeze::Unfreeze(); }
+
+void StepOneGameFrame() { Util::Freeze::StepOneFrame(); }
