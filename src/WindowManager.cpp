@@ -6,6 +6,7 @@
 
 #include "RE/M/Main.h"
 #include "REX/REX.h"
+#include "Util/Freeze.h"
 
 namespace
 {
@@ -14,14 +15,6 @@ namespace
     // the game itself needs during loading screens, the main menu, cinematics, etc.
     bool g_frameworkOwnsPause = false;
 
-    void ApplyPause(bool a_pause)
-    {
-        if (auto *main = RE::Main::GetSingleton())
-        {
-            main->isGameMenuPaused = a_pause;
-        }
-    }
-
     // Called every frame from Overlay::UpdateFrameInputState.
     void RefreshPause()
     {
@@ -29,12 +22,12 @@ namespace
 
         if (shouldPause)
         {
-            ApplyPause(true);
+            Util::Freeze::Freeze();
             g_frameworkOwnsPause = true;
         }
         else if (g_frameworkOwnsPause)
         {
-            ApplyPause(false);
+            Util::Freeze::Unfreeze();
             g_frameworkOwnsPause = false;
         }
     }

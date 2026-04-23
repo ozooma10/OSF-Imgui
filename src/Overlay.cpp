@@ -330,7 +330,7 @@ namespace Overlay
 			}
 		}
 
-		void TranslateGamepadButtonEvent(ImGuiIO& a_io, const RE::ButtonEvent& a_button)
+		void TranslateGamepadButtonEvent(ImGuiIO &a_io, const RE::ButtonEvent &a_button)
 		{
 			if (a_button.deviceType != RE::InputEvent::DeviceType::kGamepad)
 			{
@@ -799,7 +799,7 @@ namespace Overlay
 			}
 
 			const bool isKeyDown = (a_keyboard.Flags & RI_KEY_BREAK) == 0;
-			if (virtualKey == VK_F10)
+			if (virtualKey == VK_F1)
 			{
 				static bool toggleKeyDown = false;
 				if (!isKeyDown)
@@ -1154,7 +1154,7 @@ namespace Overlay
 		return ShouldCaptureBlockingInput();
 	}
 
-	bool ConsumeInputQueue(const RE::InputEvent* a_queueHead)
+	bool ConsumeInputQueue(const RE::InputEvent *a_queueHead)
 	{
 		if (!a_queueHead)
 		{
@@ -1167,15 +1167,15 @@ namespace Overlay
 			return false;
 		}
 
-		auto& io = ImGui::GetIO();
-		for (auto* event = a_queueHead; event != nullptr; event = event->next)
+		auto &io = ImGui::GetIO();
+		for (auto *event = a_queueHead; event != nullptr; event = event->next)
 		{
 			if (event->eventType != RE::InputEvent::EventType::kButton || !event->HasIDCode())
 			{
 				continue;
 			}
 
-			TranslateGamepadButtonEvent(io, static_cast<const RE::ButtonEvent&>(*event));
+			TranslateGamepadButtonEvent(io, static_cast<const RE::ButtonEvent &>(*event));
 		}
 
 		return true;
