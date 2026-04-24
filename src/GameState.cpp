@@ -15,11 +15,15 @@ void GameState::setLockState(LockState newState)
     lastLockState = newState;
     if (newState == LockState::Locked)
     {
+        REX::INFO("GameState: Locked");
+        RE::UIBlurManager::GetSingleton()->IncrementBlurCount();
         Util::Freeze::Freeze();
         didFreezeTime = true;
     }
     else if (didFreezeTime)
     {
+        REX::INFO("GameState: Unlocked");
+        RE::UIBlurManager::GetSingleton()->DecrementBlurCount();
         Util::Freeze::Unfreeze();
         didFreezeTime = false;
     }

@@ -96,12 +96,6 @@ void Util::Freeze::Freeze()
 		ToggleGamePause("Freeze");
 		g_ownsFreeze.store(FreezeTime(), std::memory_order_release);
 	}
-
-	REX::INFO(
-		"Freeze: requested freezeTime {} -> {} ownsFreeze={}",
-		before,
-		FreezeTime(),
-		g_ownsFreeze.load(std::memory_order_relaxed));
 }
 
 void Util::Freeze::Unfreeze()
@@ -131,22 +125,16 @@ void Util::Freeze::StepOneFrame()
 
 void Util::Freeze::OnFrame()
 {
+	if (g_wantsFreeze.load(std::memory_order_acquire) || !g_ownsFreeze.load(std::memory_order_acquire))
+	{
+		return;
+	}
+
 	std::scoped_lock lock(g_lock);
-
-	if (!g_wantsFreeze.load(std::memory_order_acquire))
-	{
-		if (g_ownsFreeze.load(std::memory_order_acquire) && !IsPauseMenuOpen())
-		{
-			ReleaseOwnedFreeze("OnFrame");
-		}
-		return;
-	}
-
-	if (FreezeTime() || IsPauseMenuOpen())
+	if (g_wantsFreeze.load(std::memory_order_acquire) || !g_ownsFreeze.load(std::memory_order_acquire))
 	{
 		return;
 	}
 
-	ToggleGamePause("OnFrame");
-	g_ownsFreeze.store(FreezeTime(), std::memory_order_release);
+	ReleaseOwnedFreeze("OnFrame");
 }

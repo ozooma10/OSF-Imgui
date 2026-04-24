@@ -20,13 +20,15 @@ namespace
     {
         const bool shouldPause = WindowManager::ShouldTheGameBePaused();
 
-        if (shouldPause)
+        if (shouldPause && !g_frameworkOwnsPause)
         {
+            RE::UIBlurManager::GetSingleton()->IncrementBlurCount();
             Util::Freeze::Freeze();
             g_frameworkOwnsPause = true;
         }
-        else if (g_frameworkOwnsPause)
+        else if (!shouldPause && g_frameworkOwnsPause)
         {
+            RE::UIBlurManager::GetSingleton()->DecrementBlurCount();
             Util::Freeze::Unfreeze();
             g_frameworkOwnsPause = false;
         }
