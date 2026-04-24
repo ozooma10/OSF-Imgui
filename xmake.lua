@@ -90,6 +90,17 @@ target("SFSEMenuFramework")
                 cprint("${green}[SFSEMenuFramework] copied font:${clear} %s -> %s", ttf, dst)
             end
         end
+
+        local cursorsrc = path.join(os.projectdir(), "resources", "cursor")
+        if os.isdir(cursorsrc) then
+            local cursordst = path.join(plugindir, "Cursor")
+            os.mkdir(cursordst)
+            for _, png in ipairs(os.files(path.join(cursorsrc, "*.png"))) do
+                local dst = path.join(cursordst, path.filename(png))
+                os.trycp(png, dst)
+                cprint("${green}[SFSEMenuFramework] copied cursor:${clear} %s -> %s", png, dst)
+            end
+        end
     end)
 
     before_install(function(target)

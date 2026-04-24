@@ -4,7 +4,9 @@
 #include <algorithm>
 #include <cfloat>
 #include <cstdint>
+#include <filesystem>
 #include <mutex>
+#include <string>
 #include <vector>
 
 #ifndef WIN32_LEAN_AND_MEAN
@@ -23,6 +25,7 @@
 #include "RE/B/BSInputEventUser.h"
 #include "REX/REX.h"
 #include "SFSE/InputMap.h"
+#include "TextureLoader.h"
 #include "imgui.h"
 #include "imgui_impl_dx12.h"
 #include "imgui_impl_win32.h"
@@ -148,12 +151,81 @@ namespace Overlay
 			bool hadInputCapture{false};
 			POINT overlayCursorClient{};
 			bool overlayCursorValid{false};
+			bool customCursorTextureTried{false};
+			ImTextureID customCursorTexture{ImTextureID_Invalid};
+			ImVec2 customCursorSize{32.0f, 31.0f};
+			ImVec2 customCursorHotspot{0.0f, 0.0f};
 			WNDPROC originalWndProc{nullptr};
 		};
 
 		RuntimeState g_state;
 
 		[[nodiscard]] bool ShouldCaptureBlockingInput();
+
+		std::filesystem::path GetPluginDirectory()
+		{
+			HMODULE module{};
+			const auto flags = GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT;
+			if (!::GetModuleHandleExW(flags, reinterpret_cast<LPCWSTR>(&GetPluginDirectory), &module))
+			{
+				return {};
+			}
+
+			std::wstring path(MAX_PATH, L'\0');
+			const DWORD length = ::GetModuleFileNameW(module, path.data(), static_cast<DWORD>(path.size()));
+			if (length == 0 || length >= path.size())
+			{
+				return {};
+			}
+
+			path.resize(length);
+			return std::filesystem::path(path).parent_path();
+		}
+
+		std::string PathToUtf8(const std::filesystem::path &a_path)
+		{
+			auto utf8 = a_path.u8string();
+			return {reinterpret_cast<const char *>(utf8.data()), utf8.size()};
+		}
+
+		ImTextureID GetCustomCursorTexture()
+		{
+			if (!g_state.customCursorTextureTried)
+			{
+				g_state.customCursorTextureTried = true;
+
+				const auto cursorPath = GetPluginDirectory() / L"Cursor" / L"starfield_cursor.png";
+				g_state.customCursorTexture = TextureLoader::GetTexture(PathToUtf8(cursorPath));
+				if (g_state.customCursorTexture == ImTextureID_Invalid)
+				{
+					REX::WARN("Overlay: custom cursor texture not loaded from {}", PathToUtf8(cursorPath));
+				}
+			}
+
+			return g_state.customCursorTexture;
+		}
+
+		bool DrawCustomCursor()
+		{
+			const auto texture = GetCustomCursorTexture();
+			if (texture == ImTextureID_Invalid)
+			{
+				return false;
+			}
+
+			const ImVec2 mousePos = ImGui::GetMousePos();
+			if (mousePos.x <= -FLT_MAX * 0.5f || mousePos.y <= -FLT_MAX * 0.5f)
+			{
+				return true;
+			}
+
+			const ImVec2 topLeft = mousePos - g_state.customCursorHotspot;
+			ImGui::GetForegroundDrawList()->AddImage(
+				texture,
+				topLeft,
+				topLeft + g_state.customCursorSize);
+			return true;
+		}
 
 		[[nodiscard]] bool IsMouseMessage(UINT a_message)
 		{
@@ -1330,6 +1402,10 @@ namespace Overlay
 		ImGui::NewFrame();
 
 		WindowManager::RenderWindows();
+		if (ShouldCaptureBlockingInput() && DrawCustomCursor())
+		{
+			ImGui::GetIO().MouseDrawCursor = false;
+		}
 
 		ImGui::Render();
 		ImGui_ImplDX12_RenderDrawData(ImGui::GetDrawData(), g_state.commandList.Get());
