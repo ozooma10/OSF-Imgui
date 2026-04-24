@@ -50,71 +50,9 @@ target("SFSEMenuFramework")
     add_defines("NOMINMAX", "WIN32_LEAN_AND_MEAN", "IMGUI_IMPL_WIN32_DISABLE_GAMEPAD", "IMGUI_DEFINE_MATH_OPERATORS")
     add_syslinks("d3d12", "dxgi", "user32")
 
-    after_build(function(target)
-        local modsroot = os.getenv("XSE_SF_MODS_PATH")
-        local gameroot = os.getenv("XSE_SF_GAME_PATH")
-        local plugindir = nil
-
-        if modsroot and #modsroot > 0 then
-            plugindir = path.join(modsroot, target:name(), "SFSE", "Plugins")
-        elseif gameroot and #gameroot > 0 then
-            plugindir = path.join(gameroot, "Data", "SFSE", "Plugins")
-        else
-            cprint("${yellow}[SFSEMenuFramework] no XSE_SF_MODS_PATH or XSE_SF_GAME_PATH set; skipping post-build copy")
-            return
-        end
-
-        local files_to_copy = {
-            { src = target:targetfile(), label = "plugin" },
-            { src = target:symbolfile(), label = "symbols" }
-        }
-
-        os.mkdir(plugindir)
-        cprint("${bright cyan}[SFSEMenuFramework] copying build outputs to %s", plugindir)
-
-        for _, entry in ipairs(files_to_copy) do
-            if entry.src and os.isfile(entry.src) then
-                local dst = path.join(plugindir, path.filename(entry.src))
-                os.trycp(entry.src, dst)
-                cprint("${green}[SFSEMenuFramework] copied %s:${clear} %s -> %s", entry.label, entry.src, dst)
-            end
-        end
-
-        local fontsrc = path.join(os.projectdir(), "resources", "fonts")
-        if os.isdir(fontsrc) then
-            local fontdst = path.join(plugindir, "Fonts")
-            os.mkdir(fontdst)
-            for _, ttf in ipairs(os.files(path.join(fontsrc, "*.ttf"))) do
-                local dst = path.join(fontdst, path.filename(ttf))
-                os.trycp(ttf, dst)
-                cprint("${green}[SFSEMenuFramework] copied font:${clear} %s -> %s", ttf, dst)
-            end
-        end
-
-        local cursorsrc = path.join(os.projectdir(), "resources", "cursor")
-        if os.isdir(cursorsrc) then
-            local cursordst = path.join(plugindir, "Cursor")
-            os.mkdir(cursordst)
-            for _, png in ipairs(os.files(path.join(cursorsrc, "*.png"))) do
-                local dst = path.join(cursordst, path.filename(png))
-                os.trycp(png, dst)
-                cprint("${green}[SFSEMenuFramework] copied cursor:${clear} %s -> %s", png, dst)
-            end
-        end
-    end)
-
-    before_install(function(target)
-        local srcfiles, dstfiles = target:installfiles()
-        if not srcfiles or #srcfiles == 0 or not dstfiles or #dstfiles == 0 then
-            cprint("${yellow}[SFSEMenuFramework] no install copy targets are configured")
-            return
-        end
-
-        cprint("${bright cyan}[SFSEMenuFramework] install copy plan:")
-        for idx, srcfile in ipairs(srcfiles) do
-            cprint("${dim}  %s -> %s", srcfile, dstfiles[idx])
-        end
-    end)
+    -- add resource files (copied alongside the DLL on `xmake install`)
+    add_installfiles("resources/fonts/*.ttf",  { prefixdir = "SFSE/Plugins/Fonts" })
+    add_installfiles("resources/cursor/*.png", { prefixdir = "SFSE/Plugins/Cursor" })
 
     after_install(function(target)
         local _, dstfiles = target:installfiles()
